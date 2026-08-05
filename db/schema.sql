@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS images (
     face_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     image_id UUID NOT NULL,
     blob_path TEXT NOT NULL,
+    original_filename TEXT,
     embedding vector(512) NOT NULL,
     matched_person_id UUID REFERENCES persons(person_id),
     confidence FLOAT,
@@ -24,6 +25,9 @@ CREATE TABLE IF NOT EXISTS images (
     bbox_h INT,
     uploaded_at TIMESTAMP DEFAULT now()
 );
+
+-- In case this table already existed from before this column was added.
+ALTER TABLE images ADD COLUMN IF NOT EXISTS original_filename TEXT;
 
 -- employee_id is the true unique identifier (names can repeat across people).
 -- ON CONFLICT (employee_id) in ingest_reference_images.py relies on this index.
@@ -38,3 +42,7 @@ CREATE INDEX IF NOT EXISTS images_embedding_hnsw_idx
 
 CREATE INDEX IF NOT EXISTS images_image_id_idx
     ON images USING btree (image_id);
+
+-- For fast filename-based duplicate checking during upload.
+CREATE INDEX IF NOT EXISTS images_original_filename_idx
+    ON images (original_filename);

@@ -1,0 +1,49 @@
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Poetry ---
+# poetry.lock is intentionally tracked for reproducible installs
+
+# --- Testing / coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Type checkers / linters ---
+.mypy_cache/
+.ruff_cache/
+
+# --- IDE ---
+.vscode/
+.idea/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Project data (sensitive: photos of real people) ---
+pics/
+
+# --- Database ---
+*.sqlite3
+pgdata/
+
+# --- Claude Code local settings ---
+.claude/settings.local.json

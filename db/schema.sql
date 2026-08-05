@@ -1,0 +1,40 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS persons (
+    person_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id TEXT NOT NULL,
+    name TEXT,
+    reference_embedding vector(512),
+    reference_image_path TEXT
+);
+
+-- In case this table already existed from before this column was added.
+ALTER TABLE persons ADD COLUMN IF NOT EXISTS reference_image_path TEXT;
+
+CREATE TABLE IF NOT EXISTS images (
+    face_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    image_id UUID NOT NULL,
+    blob_path TEXT NOT NULL,
+    embedding vector(512) NOT NULL,
+    matched_person_id UUID REFERENCES persons(person_id),
+    confidence FLOAT,
+    bbox_x INT,
+    bbox_y INT,
+    bbox_w INT,
+    bbox_h INT,
+    uploaded_at TIMESTAMP DEFAULT now()
+);
+
+-- employee_id is the true unique identifier (names can repeat across people).
+-- ON CONFLICT (employee_id) in ingest_reference_images.py relies on this index.
+CREATE UNIQUE INDEX IF NOT EXISTS persons_employee_id_unique_idx
+    ON persons (employee_id);
+
+CREATE INDEX IF NOT EXISTS persons_reference_embedding_hnsw_idx
+    ON persons USING hnsw (reference_embedding vector_cosine_ops);
+
+CREATE INDEX IF NOT EXISTS images_embedding_hnsw_idx
+    ON images USING hnsw (embedding vector_cosine_ops);
+
+CREATE INDEX IF NOT EXISTS images_image_id_idx
+    ON images USING btree (image_id);

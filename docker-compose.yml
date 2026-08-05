@@ -1,0 +1,16 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: face-recognition-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-face_recognition}
+      POSTGRES_USER: ${POSTGRES_USER:-face_recognition}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-face_recognition}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

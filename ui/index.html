@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Face Search</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Arial, sans-serif;
+    max-width: 960px;
+    margin: 30px auto;
+    padding: 0 16px;
+    background: #f7f7f8;
+    color: #111;
+  }
+  h1 { font-size: 22px; margin-bottom: 20px; }
+
+  #control-bar {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+
+  #mode-tabs {
+    display: flex;
+    gap: 6px;
+    background: #f1f1f3;
+    padding: 4px;
+    border-radius: 8px;
+    width: fit-content;
+    margin-bottom: 14px;
+  }
+  .mode-btn {
+    background: transparent;
+    color: #555;
+    font-weight: 500;
+  }
+  .mode-btn.active {
+    background: #2563eb;
+    color: white;
+  }
+
+  #search-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  #search-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 240px;
+  }
+
+  #employee-input-wrap { position: relative; flex: 1; max-width: 320px; }
+  #employeeInput {
+    width: 100%;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+  #suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  #suggestions.open { display: block; }
+  .suggestion-item { padding: 8px 10px; font-size: 14px; cursor: pointer; }
+  .suggestion-item:hover { background: #f1f1f3; }
+
+  input[type="file"] {
+    font-size: 14px;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fafafa;
+    cursor: pointer;
+  }
+
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  #searchBtn {
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+  }
+  #searchBtn:disabled { background: #9ca3af; cursor: default; }
+
+  #view-toggle {
+    display: flex;
+    gap: 6px;
+    background: #f1f1f3;
+    padding: 4px;
+    border-radius: 8px;
+  }
+  .toggle-btn { background: transparent; color: #555; }
+  .toggle-btn.active { background: #2563eb; color: white; }
+
+  #status { font-size: 14px; color: #555; margin-bottom: 16px; }
+
+  #results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    cursor: pointer;
+  }
+  .card img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+  }
+  #loader { text-align: center; padding: 20px; color: #888; font-size: 14px; }
+  #loadMoreBtn {
+    display: block;
+    margin: 10px auto;
+    background: #e5e7eb;
+    color: #111;
+  }
+
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal-content { position: relative; max-width: 90vw; max-height: 90vh; }
+  #modal-content img { max-width: 90vw; max-height: 90vh; display: block; border-radius: 6px; }
+  #modal-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: white;
+    color: #111;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>Search photos by face</h1>
+
+<div id="control-bar">
+  <div id="mode-tabs">
+    <button class="mode-btn active" id="modeImageBtn">Search by image</button>
+    <button class="mode-btn" id="modeEmployeeBtn">Search by employee ID</button>
+  </div>
+
+  <div id="search-row">
+    <div id="search-inputs">
+      <div id="image-input-group">
+        <input type="file" id="fileInput" accept="image/*" />
+      </div>
+      <div id="employee-input-group" style="display:none">
+        <div id="employee-input-wrap">
+          <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
+          <div id="suggestions"></div>
+        </div>
+      </div>
+      <button id="searchBtn" disabled>Search</button>
+    </div>
+
+    <div id="view-toggle">
+      <button id="originalBtn" class="toggle-btn active">Original View</button>
+      <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
+    </div>
+  </div>
+</div>
+
+<div id="status"></div>
+<div id="results"></div>
+<div id="loader"></div>
+<button id="loadMoreBtn" style="display:none">Load more</button>
+
+<div id="modal-overlay">
+  <div id="modal-content">
+    <div id="modal-close">&times;</div>
+    <img id="modal-img" src="" alt="full view" />
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+let selectedFile = null;
+let currentPage = 1;
+let hasMore = false;
+let isLoading = false;
+let viewMode = "original"; // "original" | "annotated"
+let allResults = [];
+let allPersons = [];
+let selectedEmployeeId = null;
+let searchMode = "image"; // "image" | "employee"
+const PAGE_SIZE = 12;
+
+const fileInput = document.getElementById("fileInput");
+const searchBtn = document.getElementById("searchBtn");
+const originalBtn = document.getElementById("originalBtn");
+const annotatedBtn = document.getElementById("annotatedBtn");
+const statusEl = document.getElementById("status");
+const resultsEl = document.getElementById("results");
+const loaderEl = document.getElementById("loader");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const modalOverlay = document.getElementById("modal-overlay");
+const modalImg = document.getElementById("modal-img");
+const modalClose = document.getElementById("modal-close");
+
+const modeImageBtn = document.getElementById("modeImageBtn");
+const modeEmployeeBtn = document.getElementById("modeEmployeeBtn");
+const imageInputGroup = document.getElementById("image-input-group");
+const employeeInputGroup = document.getElementById("employee-input-group");
+const employeeInput = document.getElementById("employeeInput");
+const suggestionsEl = document.getElementById("suggestions");
+
+// --- Mode switching (single search bar, two input types) ---
+function setSearchMode(mode) {
+  searchMode = mode;
+  modeImageBtn.classList.toggle("active", mode === "image");
+  modeEmployeeBtn.classList.toggle("active", mode === "employee");
+  imageInputGroup.style.display = mode === "image" ? "" : "none";
+  employeeInputGroup.style.display = mode === "employee" ? "" : "none";
+  updateSearchBtnState();
+}
+
+function updateSearchBtnState() {
+  if (searchMode === "image") {
+    searchBtn.disabled = !selectedFile;
+  } else {
+    searchBtn.disabled = !selectedEmployeeId;
+  }
+}
+
+modeImageBtn.addEventListener("click", () => setSearchMode("image"));
+modeEmployeeBtn.addEventListener("click", () => setSearchMode("employee"));
+
+// --- Load the reference persons list for the dropdown/typeahead ---
+async function loadPersons() {
+  try {
+    const res = await fetch(`${API_BASE}/persons`);
+    const data = await res.json();
+    allPersons = data.persons;
+  } catch (e) {
+    console.error("Could not load persons list", e);
+  }
+}
+loadPersons();
+
+function renderSuggestions(list) {
+  suggestionsEl.innerHTML = "";
+  if (list.length === 0) {
+    suggestionsEl.classList.remove("open");
+    return;
+  }
+  for (const p of list) {
+    const item = document.createElement("div");
+    item.className = "suggestion-item";
+    item.textContent = `${p.employee_id} - ${p.name}`;
+    item.addEventListener("click", () => {
+      employeeInput.value = `${p.employee_id} - ${p.name}`;
+      selectedEmployeeId = p.employee_id;
+      updateSearchBtnState();
+      suggestionsEl.classList.remove("open");
+    });
+    suggestionsEl.appendChild(item);
+  }
+  suggestionsEl.classList.add("open");
+}
+
+employeeInput.addEventListener("focus", () => renderSuggestions(allPersons));
+
+employeeInput.addEventListener("input", () => {
+  selectedEmployeeId = null;
+  updateSearchBtnState();
+  const query = employeeInput.value.trim().toLowerCase();
+  if (!query) {
+    renderSuggestions(allPersons);
+    return;
+  }
+  const matches = allPersons.filter(p =>
+    p.name.toLowerCase().includes(query) || p.employee_id.toLowerCase().includes(query)
+  );
+  renderSuggestions(matches);
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#employee-input-wrap")) {
+    suggestionsEl.classList.remove("open");
+  }
+});
+
+// --- File selection ---
+fileInput.addEventListener("change", () => {
+  selectedFile = fileInput.files[0] || null;
+  updateSearchBtnState();
+});
+
+// --- Single search button, behavior depends on current mode ---
+searchBtn.addEventListener("click", () => {
+  resultsEl.innerHTML = "";
+  allResults = [];
+  currentPage = 1;
+  hasMore = false;
+  fetchPage();
+});
+
+originalBtn.addEventListener("click", () => setViewMode("original"));
+annotatedBtn.addEventListener("click", () => setViewMode("annotated"));
+
+function setViewMode(mode) {
+  viewMode = mode;
+  originalBtn.classList.toggle("active", mode === "original");
+  annotatedBtn.classList.toggle("active", mode === "annotated");
+  rerenderResults();
+}
+
+function annotatedUrlFor(item) {
+  const b = item.bbox;
+  return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
+         `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
+}
+
+function imageUrlFor(item) {
+  if (viewMode === "annotated" && item.bbox) return annotatedUrlFor(item);
+  return `${API_BASE}${item.image_url}`;
+}
+
+function rerenderResults() {
+  resultsEl.innerHTML = "";
+  for (const item of allResults) resultsEl.appendChild(makeCard(item));
+}
+
+function makeCard(item) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const img = document.createElement("img");
+  img.src = imageUrlFor(item);
+  img.alt = "match";
+  card.appendChild(img);
+  card.addEventListener("click", () => openModal(item));
+  return card;
+}
+
+function openModal(item) {
+  modalImg.src = item.bbox ? annotatedUrlFor(item) : `${API_BASE}${item.image_url}`;
+  modalOverlay.classList.add("open");
+}
+function closeModal() {
+  modalOverlay.classList.remove("open");
+  modalImg.src = "";
+}
+modalClose.addEventListener("click", closeModal);
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+async function fetchPage() {
+  if (isLoading) return;
+  if (searchMode === "image" && !selectedFile) return;
+  if (searchMode === "employee" && !selectedEmployeeId) return;
+
+  isLoading = true;
+  loaderEl.textContent = "Loading...";
+  loadMoreBtn.style.display = "none";
+
+  try {
+    let res;
+    if (searchMode === "image") {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}`;
+      res = await fetch(url, { method: "POST", body: formData });
+    } else {
+      const url = `${API_BASE}/search_by_employee?employee_id=${encodeURIComponent(selectedEmployeeId)}&page=${currentPage}&page_size=${PAGE_SIZE}`;
+      res = await fetch(url, { method: "GET" });
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = "Error: " + (err.detail || res.statusText);
+      loaderEl.textContent = "";
+      isLoading = false;
+      return;
+    }
+
+    const data = await res.json();
+    hasMore = data.has_more;
+    statusEl.textContent = `Found ${data.total_count} photo(s).`;
+
+    for (const item of data.results) {
+      allResults.push(item);
+      resultsEl.appendChild(makeCard(item));
+    }
+
+    loaderEl.textContent = "";
+    loadMoreBtn.style.display = hasMore ? "block" : "none";
+    currentPage += 1;
+  } catch (e) {
+    statusEl.textContent = "Request failed: " + e.message;
+  }
+
+  isLoading = false;
+}
+
+loadMoreBtn.addEventListener("click", fetchPage);
+
+window.addEventListener("scroll", () => {
+  const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+  if (nearBottom && hasMore && !isLoading) fetchPage();
+});
+</script>
+
+</body>
+</html>

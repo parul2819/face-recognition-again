@@ -2,7 +2,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from api.config import PICS_DIR, UI_DIR
-from api.controllers import image_controller, persons_controller, search_controller
+from api.controllers import (
+    admin_controller,
+    identify_controller,
+    image_controller,
+    persons_controller,
+    search_controller,
+)
 from api.db import close_pool, init_pool
 
 app = FastAPI(title="Face Recognition Search API")
@@ -21,6 +27,8 @@ async def shutdown():
 app.include_router(persons_controller.router)
 app.include_router(search_controller.router)
 app.include_router(image_controller.router)
+app.include_router(identify_controller.router)
+app.include_router(admin_controller.router)
 
 # Serve photo files and the UI (must stay after the routers above)
 app.mount("/pics", StaticFiles(directory=str(PICS_DIR)), name="pics")

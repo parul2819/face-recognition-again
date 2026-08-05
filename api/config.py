@@ -17,3 +17,6 @@ DEFAULT_PAGE_SIZE = int(os.getenv("SEARCH_PAGE_SIZE", "12"))
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PICS_DIR = PROJECT_ROOT / "pics"
 UI_DIR = PROJECT_ROOT / "ui"
+
+REFERENCE_IMAGES_DIR = PROJECT_ROOT / os.getenv("REFERENCE_IMAGES_DIR", "pics/reference pics")
+IMAGES_DIR = PROJECT_ROOT / os.getenv("IMAGES_DIR", "pics")

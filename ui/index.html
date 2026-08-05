@@ -5,41 +5,80 @@
 <title>Face Search</title>
 <style>
   * { box-sizing: border-box; }
-  body {
+  html, body {
+    height: 100%;
+    margin: 0;
     font-family: -apple-system, Segoe UI, Arial, sans-serif;
-    max-width: 960px;
-    margin: 30px auto;
-    padding: 0 16px;
     background: #f7f7f8;
     color: #111;
   }
-  h1 { font-size: 22px; margin-bottom: 20px; }
 
-  #control-bar {
+  #layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+  }
+  #sidebar h1 {
+    font-size: 17px;
+    margin: 0 0 20px;
+    padding: 0 6px;
+  }
+  .nav-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #444;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+  .nav-item:hover { background: #f1f1f3; }
+  .nav-item.active { background: #2563eb; color: white; }
+  #sidebar-footer {
+    margin-top: auto;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 12px;
+  }
+  #adminLink {
+    display: block;
+    font-size: 14px;
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 8px 12px;
+  }
+
+  /* ---------- Main content ---------- */
+  #main-content {
+    flex: 1;
+    padding: 24px 32px;
+    max-width: 900px;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel h2 { font-size: 18px; margin: 0 0 16px; }
+
+  .card-box {
     background: white;
     border-radius: 10px;
     padding: 16px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     margin-bottom: 20px;
-  }
-
-  #mode-tabs {
-    display: flex;
-    gap: 6px;
-    background: #f1f1f3;
-    padding: 4px;
-    border-radius: 8px;
-    width: fit-content;
-    margin-bottom: 14px;
-  }
-  .mode-btn {
-    background: transparent;
-    color: #555;
-    font-weight: 500;
-  }
-  .mode-btn.active {
-    background: #2563eb;
-    color: white;
   }
 
   #search-row {
@@ -49,7 +88,6 @@
     flex-wrap: wrap;
     gap: 12px;
   }
-
   #search-inputs {
     display: flex;
     align-items: center;
@@ -57,7 +95,6 @@
     flex: 1;
     min-width: 240px;
   }
-
   #employee-input-wrap { position: relative; flex: 1; max-width: 320px; }
   #employeeInput {
     width: 100%;
@@ -101,12 +138,12 @@
     font-family: inherit;
   }
 
-  #searchBtn {
+  #searchBtn, #identifyBtn {
     background: #2563eb;
     color: white;
     font-weight: 600;
   }
-  #searchBtn:disabled { background: #9ca3af; cursor: default; }
+  #searchBtn:disabled, #identifyBtn:disabled { background: #9ca3af; cursor: default; }
 
   #view-toggle {
     display: flex;
@@ -146,6 +183,20 @@
     color: #111;
   }
 
+  #identify-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  #identifyStatus { font-size: 14px; color: #555; margin-bottom: 10px; }
+  #identifyResult img {
+    max-width: 100%;
+    border-radius: 8px;
+    display: block;
+    cursor: pointer;
+  }
+
   #modal-overlay {
     display: none;
     position: fixed;
@@ -176,39 +227,67 @@
 </head>
 <body>
 
-<h1>Search photos by face</h1>
+<div id="layout">
 
-<div id="control-bar">
-  <div id="mode-tabs">
-    <button class="mode-btn active" id="modeImageBtn">Search by image</button>
-    <button class="mode-btn" id="modeEmployeeBtn">Search by employee ID</button>
+  <div id="sidebar">
+    <h1>Face Recognition</h1>
+    <button class="nav-item active" data-panel="panel-search" id="navSearch">Search by Image</button>
+    <button class="nav-item" data-panel="panel-search" id="navSearchEmp">Search by Employee ID</button>
+    <button class="nav-item" data-panel="panel-identify" id="navIdentify">Identify Photo</button>
+    <div id="sidebar-footer">
+      <a id="adminLink" href="/admin.html">Admin &rarr;</a>
+    </div>
   </div>
 
-  <div id="search-row">
-    <div id="search-inputs">
-      <div id="image-input-group">
-        <input type="file" id="fileInput" accept="image/*" />
-      </div>
-      <div id="employee-input-group" style="display:none">
-        <div id="employee-input-wrap">
-          <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
-          <div id="suggestions"></div>
+  <div id="main-content">
+
+    <!-- ================= SEARCH PANEL ================= -->
+    <div class="panel active" id="panel-search">
+      <h2>Search photos by face</h2>
+
+      <div id="control-bar" class="card-box">
+        <div id="search-row">
+          <div id="search-inputs">
+            <div id="image-input-group">
+              <input type="file" id="fileInput" accept="image/*" />
+            </div>
+            <div id="employee-input-group" style="display:none">
+              <div id="employee-input-wrap">
+                <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
+                <div id="suggestions"></div>
+              </div>
+            </div>
+            <button id="searchBtn" disabled>Search</button>
+          </div>
+
+          <div id="view-toggle">
+            <button id="originalBtn" class="toggle-btn active">Original View</button>
+            <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
+          </div>
         </div>
       </div>
-      <button id="searchBtn" disabled>Search</button>
+
+      <div id="status"></div>
+      <div id="results"></div>
+      <div id="loader"></div>
+      <button id="loadMoreBtn" style="display:none">Load more</button>
     </div>
 
-    <div id="view-toggle">
-      <button id="originalBtn" class="toggle-btn active">Original View</button>
-      <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
+    <!-- ================= IDENTIFY PANEL ================= -->
+    <div class="panel" id="panel-identify">
+      <h2>Identify people in a photo</h2>
+      <div class="card-box">
+        <div id="identify-row">
+          <input type="file" id="identifyFileInput" accept="image/*" />
+          <button id="identifyBtn" disabled>Identify</button>
+        </div>
+        <div id="identifyStatus"></div>
+        <div id="identifyResult"></div>
+      </div>
     </div>
+
   </div>
 </div>
-
-<div id="status"></div>
-<div id="results"></div>
-<div id="loader"></div>
-<button id="loadMoreBtn" style="display:none">Load more</button>
 
 <div id="modal-overlay">
   <div id="modal-content">
@@ -243,18 +322,41 @@ const modalOverlay = document.getElementById("modal-overlay");
 const modalImg = document.getElementById("modal-img");
 const modalClose = document.getElementById("modal-close");
 
-const modeImageBtn = document.getElementById("modeImageBtn");
-const modeEmployeeBtn = document.getElementById("modeEmployeeBtn");
-const imageInputGroup = document.getElementById("image-input-group");
 const employeeInputGroup = document.getElementById("employee-input-group");
+const imageInputGroup = document.getElementById("image-input-group");
 const employeeInput = document.getElementById("employeeInput");
 const suggestionsEl = document.getElementById("suggestions");
 
-// --- Mode switching (single search bar, two input types) ---
+// --- Sidebar navigation ---
+const navButtons = document.querySelectorAll(".nav-item");
+const panels = document.querySelectorAll(".panel");
+
+function showPanel(panelId) {
+  panels.forEach(p => p.classList.toggle("active", p.id === panelId));
+}
+
+document.getElementById("navSearch").addEventListener("click", () => {
+  setActiveNav("navSearch");
+  setSearchMode("image");
+  showPanel("panel-search");
+});
+document.getElementById("navSearchEmp").addEventListener("click", () => {
+  setActiveNav("navSearchEmp");
+  setSearchMode("employee");
+  showPanel("panel-search");
+});
+document.getElementById("navIdentify").addEventListener("click", () => {
+  setActiveNav("navIdentify");
+  showPanel("panel-identify");
+});
+
+function setActiveNav(id) {
+  navButtons.forEach(b => b.classList.toggle("active", b.id === id));
+}
+
+// --- Search mode (image vs employee), driven by sidebar now ---
 function setSearchMode(mode) {
   searchMode = mode;
-  modeImageBtn.classList.toggle("active", mode === "image");
-  modeEmployeeBtn.classList.toggle("active", mode === "employee");
   imageInputGroup.style.display = mode === "image" ? "" : "none";
   employeeInputGroup.style.display = mode === "employee" ? "" : "none";
   updateSearchBtnState();
@@ -267,9 +369,6 @@ function updateSearchBtnState() {
     searchBtn.disabled = !selectedEmployeeId;
   }
 }
-
-modeImageBtn.addEventListener("click", () => setSearchMode("image"));
-modeEmployeeBtn.addEventListener("click", () => setSearchMode("employee"));
 
 // --- Load the reference persons list for the dropdown/typeahead ---
 async function loadPersons() {
@@ -374,12 +473,14 @@ function makeCard(item) {
   img.src = imageUrlFor(item);
   img.alt = "match";
   card.appendChild(img);
-  card.addEventListener("click", () => openModal(item));
+  card.addEventListener("click", () => openModalWithUrl(imageUrlFor(item)));
   return card;
 }
 
-function openModal(item) {
-  modalImg.src = imageUrlFor(item);
+// Generic full-screen viewer: pass any image URL (used by search result
+// cards AND the "Identify" result image below).
+function openModalWithUrl(url) {
+  modalImg.src = url;
   modalOverlay.classList.add("open");
 }
 function closeModal() {
@@ -443,6 +544,45 @@ loadMoreBtn.addEventListener("click", fetchPage);
 window.addEventListener("scroll", () => {
   const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
   if (nearBottom && hasMore && !isLoading) fetchPage();
+});
+
+// --- Identify people in a photo (group or solo) ---
+const identifyFileInput = document.getElementById("identifyFileInput");
+const identifyBtn = document.getElementById("identifyBtn");
+const identifyStatus = document.getElementById("identifyStatus");
+const identifyResult = document.getElementById("identifyResult");
+let identifySelectedFile = null;
+
+identifyFileInput.addEventListener("change", () => {
+  identifySelectedFile = identifyFileInput.files[0] || null;
+  identifyBtn.disabled = !identifySelectedFile;
+});
+
+identifyBtn.addEventListener("click", async () => {
+  if (!identifySelectedFile) return;
+  identifyStatus.textContent = "Identifying...";
+  identifyResult.innerHTML = "";
+
+  const formData = new FormData();
+  formData.append("file", identifySelectedFile);
+
+  try {
+    const res = await fetch(`${API_BASE}/identify`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      identifyStatus.textContent = "Error: " + (err.detail || res.statusText);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    identifyStatus.textContent = "";
+    const img = document.createElement("img");
+    img.src = url;
+    img.addEventListener("click", () => openModalWithUrl(url));
+    identifyResult.appendChild(img);
+  } catch (e) {
+    identifyStatus.textContent = "Request failed: " + e.message;
+  }
 });
 </script>
 

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Arial, sans-serif;
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 0 16px;
+    background: #f7f7f8;
+    color: #111;
+  }
+  #top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  h1 { font-size: 22px; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: #666; margin: 0 0 14px; }
+  #backLink { font-size: 14px; color: #2563eb; text-decoration: none; font-weight: 600; }
+
+  .card-box {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+
+  #stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    flex: 1;
+    background: white;
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+  .stat-number { font-size: 24px; font-weight: 600; color: #2563eb; }
+  .stat-label { font-size: 12px; color: #666; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    color: #444;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input[type="text"], input[type="file"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fafafa;
+  }
+
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    margin-top: 14px;
+  }
+  .btn-primary { background: #2563eb; color: white; font-weight: 600; }
+  .btn-danger { background: #dc2626; color: white; font-weight: 600; }
+  button:disabled { background: #9ca3af; cursor: default; }
+
+  .msg { font-size: 13px; margin-top: 10px; }
+  .msg.success { color: #16a34a; }
+  .msg.error { color: #dc2626; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { text-align: left; padding: 8px 6px; font-size: 13px; border-bottom: 1px solid #eee; }
+  .del-btn { background: #fee2e2; color: #b91c1c; font-size: 12px; padding: 4px 10px; margin: 0; }
+
+  #danger-zone { border: 1px solid #fecaca; }
+  #danger-zone h2 { color: #dc2626; }
+</style>
+</head>
+<body>
+
+<div id="top-bar">
+  <h1>Admin</h1>
+  <a id="backLink" href="/">&larr; Back to search</a>
+</div>
+
+<div id="stats-row">
+  <div class="stat-box">
+    <div class="stat-number" id="statPersons">-</div>
+    <div class="stat-label">Reference persons</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number" id="statPhotos">-</div>
+    <div class="stat-label">Photos ingested</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number" id="statFaces">-</div>
+    <div class="stat-label">Faces detected</div>
+  </div>
+</div>
+
+<div class="card-box">
+  <h2>Add / update reference person</h2>
+  <p class="subtitle">New joiner, or updating someone's existing reference photo — same employee ID overwrites it.</p>
+
+  <label>Employee ID</label>
+  <input type="text" id="empIdInput" placeholder="e.g. E1005" />
+
+  <label>Name</label>
+  <input type="text" id="empNameInput" placeholder="e.g. Priya Sharma" />
+
+  <label>Reference photo (solo face only)</label>
+  <input type="file" id="empFileInput" accept="image/*" />
+
+  <button class="btn-primary" id="addPersonBtn">Add / update person</button>
+  <div class="msg" id="personMsg"></div>
+</div>
+
+<div class="card-box">
+  <h2>Add test images</h2>
+  <p class="subtitle">Bulk-add new photos into the searchable library. Existing data is kept.</p>
+
+  <label>Photos (you can select multiple)</label>
+  <input type="file" id="testImagesInput" accept="image/*" multiple />
+
+  <button class="btn-primary" id="addImagesBtn">Upload photos</button>
+  <div class="msg" id="imagesMsg"></div>
+</div>
+
+<div class="card-box">
+  <h2>Reference persons</h2>
+  <table id="personsTable">
+    <thead><tr><th>Employee ID</th><th>Name</th><th></th></tr></thead>
+    <tbody id="personsTableBody"></tbody>
+  </table>
+</div>
+
+<div class="card-box" id="danger-zone">
+  <h2>Danger zone</h2>
+  <p class="subtitle">Permanently deletes every reference person and every ingested photo. Cannot be undone.</p>
+  <button class="btn-danger" id="resetBtn">Delete all data</button>
+  <div class="msg" id="resetMsg"></div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+async function loadStats() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/stats`);
+    const data = await res.json();
+    document.getElementById("statPersons").textContent = data.persons_count;
+    document.getElementById("statPhotos").textContent = data.photos_count;
+    document.getElementById("statFaces").textContent = data.faces_count;
+  } catch (e) {
+    console.error("Could not load stats", e);
+  }
+}
+
+async function loadPersonsTable() {
+  try {
+    const res = await fetch(`${API_BASE}/persons`);
+    const data = await res.json();
+    const tbody = document.getElementById("personsTableBody");
+    tbody.innerHTML = "";
+    for (const p of data.persons) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${p.employee_id}</td><td>${p.name}</td><td></td>`;
+      const delBtn = document.createElement("button");
+      delBtn.className = "del-btn";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete reference person ${p.employee_id} (${p.name})?`)) return;
+        await fetch(`${API_BASE}/admin/persons/${encodeURIComponent(p.employee_id)}`, { method: "DELETE" });
+        loadPersonsTable();
+        loadStats();
+      });
+      tr.querySelector("td:last-child").appendChild(delBtn);
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    console.error("Could not load persons table", e);
+  }
+}
+
+loadStats();
+loadPersonsTable();
+
+// --- Add / update reference person ---
+document.getElementById("addPersonBtn").addEventListener("click", async () => {
+  const empId = document.getElementById("empIdInput").value.trim();
+  const empName = document.getElementById("empNameInput").value.trim();
+  const fileInput = document.getElementById("empFileInput");
+  const msgEl = document.getElementById("personMsg");
+
+  if (!empId || !empName || !fileInput.files[0]) {
+    msgEl.textContent = "Please fill employee ID, name, and choose a photo.";
+    msgEl.className = "msg error";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("employee_id", empId);
+  formData.append("name", empName);
+  formData.append("file", fileInput.files[0]);
+
+  msgEl.textContent = "Saving...";
+  msgEl.className = "msg";
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/persons`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = "Error: " + (data.detail || res.statusText);
+      msgEl.className = "msg error";
+      return;
+    }
+    msgEl.textContent = `${data.name} (${data.employee_id}) ${data.action} successfully.`;
+    msgEl.className = "msg success";
+    document.getElementById("empIdInput").value = "";
+    document.getElementById("empNameInput").value = "";
+    fileInput.value = "";
+    loadStats();
+    loadPersonsTable();
+  } catch (e) {
+    msgEl.textContent = "Request failed: " + e.message;
+    msgEl.className = "msg error";
+  }
+});
+
+// --- Add test images ---
+document.getElementById("addImagesBtn").addEventListener("click", async () => {
+  const filesInput = document.getElementById("testImagesInput");
+  const msgEl = document.getElementById("imagesMsg");
+
+  if (!filesInput.files.length) {
+    msgEl.textContent = "Please choose at least one photo.";
+    msgEl.className = "msg error";
+    return;
+  }
+
+  const formData = new FormData();
+  for (const f of filesInput.files) formData.append("files", f);
+
+  msgEl.textContent = "Uploading and processing...";
+  msgEl.className = "msg";
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/test_images`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.textContent = "Error: " + (data.detail || res.statusText);
+      msgEl.className = "msg error";
+      return;
+    }
+    msgEl.textContent = `${data.photos_added} photo(s) added, ${data.faces_detected} face(s) detected, ${data.faces_matched} matched.`;
+    msgEl.className = "msg success";
+    filesInput.value = "";
+    loadStats();
+  } catch (e) {
+    msgEl.textContent = "Request failed: " + e.message;
+    msgEl.className = "msg error";
+  }
+});
+
+// --- Danger zone: delete everything ---
+document.getElementById("resetBtn").addEventListener("click", async () => {
+  const msgEl = document.getElementById("resetMsg");
+  if (!confirm("This will permanently delete ALL reference persons and ALL ingested photos. Are you sure?")) return;
+  if (!confirm("Really sure? This cannot be undone.")) return;
+
+  msgEl.textContent = "Deleting...";
+  msgEl.className = "msg";
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/reset?confirm=true`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      msgEl.textContent = "Error: " + (data.detail || res.statusText);
+      msgEl.className = "msg error";
+      return;
+    }
+    msgEl.textContent = "All data deleted.";
+    msgEl.className = "msg success";
+    loadStats();
+    loadPersonsTable();
+  } catch (e) {
+    msgEl.textContent = "Request failed: " + e.message;
+    msgEl.className = "msg error";
+  }
+});
+</script>
+
+</body>
+</html>

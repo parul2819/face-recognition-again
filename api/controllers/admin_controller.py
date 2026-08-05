@@ -16,6 +16,10 @@ from api.utils import embedding_to_pgvector
 
 router = APIRouter()
 
+# Threshold used specifically to catch "this photo already belongs to
+# someone else in the reference list" during person add/update.
+DUPLICATE_PERSON_THRESHOLD = SEARCH_THRESHOLD
+
 
 def sanitize_for_filename(text: str) -> str:
     """Turn 'Rohit Sharma' into 'Rohit_Sharma', strip anything unsafe for a filename."""
@@ -43,11 +47,17 @@ async def add_or_update_person(
     employee_id: str = Form(...),
     name: str = Form(...),
     file: UploadFile = File(...),
+    allow_duplicate: bool = Form(False),
 ):
     """
     Add a new reference person, or update an existing one's photo (same
     employee_id = update, new employee_id = add). Saves the photo under
     pics/reference pics/ and stores the embedding + path in persons table.
+
+    Before adding a NEW employee_id, checks whether this face already
+    belongs to a DIFFERENT existing employee_id, to catch accidental
+    duplicate uploads (same person added twice under different IDs).
+    Pass allow_duplicate=true to force it through anyway.
     """
     contents = await file.read()
     np_arr = np.frombuffer(contents, np.uint8)
@@ -61,18 +71,44 @@ async def add_or_update_person(
     if len(faces) > 1:
         raise HTTPException(status_code=422, detail="Multiple faces detected; please upload a solo photo")
 
-    REFERENCE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    safe_employee_id = sanitize_for_filename(employee_id)
-    safe_name = sanitize_for_filename(name)
-    filename = f"{safe_employee_id}_{safe_name}.jpg"
-    save_path = REFERENCE_IMAGES_DIR / filename
-    cv2.imwrite(str(save_path), img)
-
-    reference_image_path = str(save_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
     embedding_str = embedding_to_pgvector(faces[0]["embedding"])
 
     pool = get_pool()
     async with pool.acquire() as conn:
+        if not allow_duplicate:
+            # Look for the closest existing person, excluding this same
+            # employee_id (that case is a legitimate photo update, not a dupe).
+            closest = await conn.fetchrow(
+                """
+                SELECT employee_id, name,
+                       1 - (reference_embedding <=> $1::vector) AS similarity
+                FROM persons
+                WHERE employee_id != $2
+                ORDER BY reference_embedding <=> $1::vector
+                LIMIT 1
+                """,
+                embedding_str,
+                employee_id,
+            )
+            if closest is not None and float(closest["similarity"]) >= DUPLICATE_PERSON_THRESHOLD:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"This photo looks like it already belongs to "
+                        f"{closest['name']} ({closest['employee_id']}), "
+                        f"similarity={float(closest['similarity']):.2f}. "
+                        f"If this is a different person, resubmit with allow_duplicate=true."
+                    ),
+                )
+
+        REFERENCE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        safe_employee_id = sanitize_for_filename(employee_id)
+        safe_name = sanitize_for_filename(name)
+        filename = f"{safe_employee_id}_{safe_name}.jpg"
+        save_path = REFERENCE_IMAGES_DIR / filename
+        cv2.imwrite(str(save_path), img)
+        reference_image_path = str(save_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+
         result = await conn.fetchrow(
             """
             INSERT INTO persons (employee_id, name, reference_embedding, reference_image_path)

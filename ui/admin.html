@@ -2,27 +2,64 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Admin</title>
+<title>Admin — Face Recognition</title>
 <style>
   * { box-sizing: border-box; }
-  body {
+  html, body {
+    height: 100%;
+    margin: 0;
     font-family: -apple-system, Segoe UI, Arial, sans-serif;
-    max-width: 800px;
-    margin: 30px auto;
-    padding: 0 16px;
     background: #f7f7f8;
     color: #111;
   }
-  #top-bar {
+
+  #layout {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
+    min-height: 100vh;
   }
-  h1 { font-size: 22px; }
-  h2 { font-size: 16px; margin: 0 0 4px; }
-  .subtitle { font-size: 13px; color: #666; margin: 0 0 14px; }
-  #backLink { font-size: 14px; color: #2563eb; text-decoration: none; font-weight: 600; }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #ffffff;
+    border-right: 1px solid #e5e7eb;
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+  }
+  #sidebar h1 { font-size: 17px; margin: 0 0 20px; padding: 0 6px; }
+  .nav-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #444;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+  .nav-item:hover { background: #f1f1f3; }
+  .nav-item.active { background: #2563eb; color: white; }
+  #sidebar-footer { margin-top: auto; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+  #backLink {
+    display: block;
+    font-size: 14px;
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 8px 12px;
+  }
+
+  /* ---------- Main content ---------- */
+  #main-content { flex: 1; padding: 24px 32px; max-width: 900px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel h2 { font-size: 18px; margin: 0 0 16px; }
 
   .card-box {
     background: white;
@@ -32,29 +69,8 @@
     margin-bottom: 20px;
   }
 
-  #stats-row {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-  .stat-box {
-    flex: 1;
-    background: white;
-    border-radius: 10px;
-    padding: 14px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    text-align: center;
-  }
-  .stat-number { font-size: 24px; font-weight: 600; color: #2563eb; }
-  .stat-label { font-size: 12px; color: #666; }
-
-  label {
-    display: block;
-    font-size: 13px;
-    color: #444;
-    margin-bottom: 4px;
-    margin-top: 10px;
-  }
+  label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; font-weight: 600; }
+  .field { margin-bottom: 14px; }
   input[type="text"], input[type="file"] {
     width: 100%;
     font-size: 14px;
@@ -71,234 +87,325 @@
     cursor: pointer;
     font-size: 14px;
     font-family: inherit;
-    margin-top: 14px;
   }
-  .btn-primary { background: #2563eb; color: white; font-weight: 600; }
-  .btn-danger { background: #dc2626; color: white; font-weight: 600; }
-  button:disabled { background: #9ca3af; cursor: default; }
+  #addPersonBtn { background: #2563eb; color: white; font-weight: 600; }
+  #addPersonBtn:disabled { background: #9ca3af; cursor: default; }
 
-  .msg { font-size: 13px; margin-top: 10px; }
-  .msg.success { color: #16a34a; }
-  .msg.error { color: #dc2626; }
+  #addPersonStatus { font-size: 14px; margin-top: 12px; }
+  #addPersonStatus.success { color: #16a34a; }
+  #addPersonStatus.error { color: #dc2626; }
 
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { text-align: left; padding: 8px 6px; font-size: 13px; border-bottom: 1px solid #eee; }
-  .del-btn { background: #fee2e2; color: #b91c1c; font-size: 12px; padding: 4px 10px; margin: 0; }
+  #personsList { display: flex; flex-direction: column; gap: 8px; }
+  .person-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .person-row img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #e5e7eb;
+    flex-shrink: 0;
+  }
+  .person-info { flex: 1; color: #333; }
+  .person-info .emp-id { color: #888; font-size: 12px; margin-left: 6px; }
+  .deleteBtn { background: #fee2e2; color: #b91c1c; padding: 5px 12px; font-size: 13px; font-weight: 600; }
+  .deleteBtn:hover { background: #fecaca; }
+  #personsEmpty { font-size: 14px; color: #888; }
+  #personsListStatus { font-size: 13px; margin-top: 10px; }
+  #personsListStatus.error { color: #dc2626; }
 
-  #danger-zone { border: 1px solid #fecaca; }
-  #danger-zone h2 { color: #dc2626; }
+  /* ---------- Delete confirmation modal ---------- */
+  #confirm-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  #confirm-overlay.open { display: flex; }
+  #confirm-box {
+    background: white;
+    border-radius: 10px;
+    padding: 22px;
+    width: 320px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+  #confirm-box img {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #e5e7eb;
+    margin-bottom: 12px;
+  }
+  #confirm-box h3 { font-size: 16px; margin: 0 0 2px; }
+  #confirm-box .emp-id { font-size: 13px; color: #888; margin-bottom: 14px; }
+  #confirm-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
+  #confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  #confirmCancelBtn { background: #e5e7eb; color: #111; }
+  #confirmDeleteBtn { background: #dc2626; color: white; }
 </style>
 </head>
 <body>
 
-<div id="top-bar">
-  <h1>Admin</h1>
-  <a id="backLink" href="/">&larr; Back to search</a>
-</div>
+<div id="layout">
 
-<div id="stats-row">
-  <div class="stat-box">
-    <div class="stat-number" id="statPersons">-</div>
-    <div class="stat-label">Reference persons</div>
+  <div id="sidebar">
+    <h1>Admin</h1>
+    <button class="nav-item active" id="navAdd">Add / Update Person</button>
+    <button class="nav-item" id="navDelete">Delete Person</button>
+    <div id="sidebar-footer">
+      <a id="backLink" href="/">&larr; Back to search</a>
+    </div>
   </div>
-  <div class="stat-box">
-    <div class="stat-number" id="statPhotos">-</div>
-    <div class="stat-label">Photos ingested</div>
+
+  <div id="main-content">
+
+    <!-- ================= ADD / UPDATE PANEL ================= -->
+    <div class="panel active" id="panel-add">
+      <h2>Add or update a reference person</h2>
+      <div class="card-box">
+        <p style="font-size:13px;color:#666;margin-top:-6px;margin-bottom:16px;">
+          Use this when someone new joins, or to replace an existing person's reference photo
+          (same Employee ID = updates their photo instead of creating a duplicate).
+        </p>
+
+        <div class="field">
+          <label for="employeeIdInput">Employee ID</label>
+          <input type="text" id="employeeIdInput" placeholder="e.g. E1005" />
+        </div>
+
+        <div class="field">
+          <label for="nameInput">Name</label>
+          <input type="text" id="nameInput" placeholder="e.g. Priya Sharma" />
+        </div>
+
+        <div class="field">
+          <label for="personFileInput">Reference photo (one clear, solo face photo)</label>
+          <input type="file" id="personFileInput" accept="image/*" />
+        </div>
+
+        <button id="addPersonBtn" disabled>Add / update person</button>
+        <div id="addPersonStatus"></div>
+      </div>
+    </div>
+
+    <!-- ================= DELETE PANEL ================= -->
+    <div class="panel" id="panel-delete">
+      <h2>Delete a reference person</h2>
+      <div class="card-box">
+        <div id="personsList"></div>
+        <div id="personsEmpty" style="display:none">No reference persons yet.</div>
+        <div id="personsListStatus"></div>
+      </div>
+    </div>
+
   </div>
-  <div class="stat-box">
-    <div class="stat-number" id="statFaces">-</div>
-    <div class="stat-label">Faces detected</div>
+</div>
+
+<!-- Delete confirmation popup -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <img id="confirmPhoto" src="" alt="" />
+    <h3 id="confirmName"></h3>
+    <div class="emp-id" id="confirmEmpId"></div>
+    <p>Are you sure you want to delete this person? This cannot be undone.</p>
+    <div id="confirm-actions">
+      <button id="confirmCancelBtn">Cancel</button>
+      <button id="confirmDeleteBtn">Delete</button>
+    </div>
   </div>
-</div>
-
-<div class="card-box">
-  <h2>Add / update reference person</h2>
-  <p class="subtitle">New joiner, or updating someone's existing reference photo — same employee ID overwrites it.</p>
-
-  <label>Employee ID</label>
-  <input type="text" id="empIdInput" placeholder="e.g. E1005" />
-
-  <label>Name</label>
-  <input type="text" id="empNameInput" placeholder="e.g. Priya Sharma" />
-
-  <label>Reference photo (solo face only)</label>
-  <input type="file" id="empFileInput" accept="image/*" />
-
-  <button class="btn-primary" id="addPersonBtn">Add / update person</button>
-  <div class="msg" id="personMsg"></div>
-</div>
-
-<div class="card-box">
-  <h2>Add test images</h2>
-  <p class="subtitle">Bulk-add new photos into the searchable library. Existing data is kept.</p>
-
-  <label>Photos (you can select multiple)</label>
-  <input type="file" id="testImagesInput" accept="image/*" multiple />
-
-  <button class="btn-primary" id="addImagesBtn">Upload photos</button>
-  <div class="msg" id="imagesMsg"></div>
-</div>
-
-<div class="card-box">
-  <h2>Reference persons</h2>
-  <table id="personsTable">
-    <thead><tr><th>Employee ID</th><th>Name</th><th></th></tr></thead>
-    <tbody id="personsTableBody"></tbody>
-  </table>
-</div>
-
-<div class="card-box" id="danger-zone">
-  <h2>Danger zone</h2>
-  <p class="subtitle">Permanently deletes every reference person and every ingested photo. Cannot be undone.</p>
-  <button class="btn-danger" id="resetBtn">Delete all data</button>
-  <div class="msg" id="resetMsg"></div>
 </div>
 
 <script>
 const API_BASE = "http://127.0.0.1:8000";
 
-async function loadStats() {
-  try {
-    const res = await fetch(`${API_BASE}/admin/stats`);
-    const data = await res.json();
-    document.getElementById("statPersons").textContent = data.persons_count;
-    document.getElementById("statPhotos").textContent = data.photos_count;
-    document.getElementById("statFaces").textContent = data.faces_count;
-  } catch (e) {
-    console.error("Could not load stats", e);
-  }
+// --- Sidebar navigation ---
+document.getElementById("navAdd").addEventListener("click", () => {
+  setActiveNav("navAdd");
+  showPanel("panel-add");
+});
+document.getElementById("navDelete").addEventListener("click", () => {
+  setActiveNav("navDelete");
+  showPanel("panel-delete");
+  loadPersonsList();
+});
+
+function setActiveNav(id) {
+  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.id === id));
+}
+function showPanel(panelId) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === panelId));
 }
 
-async function loadPersonsTable() {
-  try {
-    const res = await fetch(`${API_BASE}/persons`);
-    const data = await res.json();
-    const tbody = document.getElementById("personsTableBody");
-    tbody.innerHTML = "";
-    for (const p of data.persons) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${p.employee_id}</td><td>${p.name}</td><td></td>`;
-      const delBtn = document.createElement("button");
-      delBtn.className = "del-btn";
-      delBtn.textContent = "Delete";
-      delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete reference person ${p.employee_id} (${p.name})?`)) return;
-        await fetch(`${API_BASE}/admin/persons/${encodeURIComponent(p.employee_id)}`, { method: "DELETE" });
-        loadPersonsTable();
-        loadStats();
-      });
-      tr.querySelector("td:last-child").appendChild(delBtn);
-      tbody.appendChild(tr);
-    }
-  } catch (e) {
-    console.error("Could not load persons table", e);
-  }
+// --- Add / update person ---
+const employeeIdInput = document.getElementById("employeeIdInput");
+const nameInput = document.getElementById("nameInput");
+const personFileInput = document.getElementById("personFileInput");
+const addPersonBtn = document.getElementById("addPersonBtn");
+const addPersonStatus = document.getElementById("addPersonStatus");
+
+function updateAddPersonBtnState() {
+  addPersonBtn.disabled = !(
+    employeeIdInput.value.trim() &&
+    nameInput.value.trim() &&
+    personFileInput.files.length > 0
+  );
 }
+employeeIdInput.addEventListener("input", updateAddPersonBtnState);
+nameInput.addEventListener("input", updateAddPersonBtnState);
+personFileInput.addEventListener("change", updateAddPersonBtnState);
 
-loadStats();
-loadPersonsTable();
-
-// --- Add / update reference person ---
-document.getElementById("addPersonBtn").addEventListener("click", async () => {
-  const empId = document.getElementById("empIdInput").value.trim();
-  const empName = document.getElementById("empNameInput").value.trim();
-  const fileInput = document.getElementById("empFileInput");
-  const msgEl = document.getElementById("personMsg");
-
-  if (!empId || !empName || !fileInput.files[0]) {
-    msgEl.textContent = "Please fill employee ID, name, and choose a photo.";
-    msgEl.className = "msg error";
-    return;
-  }
+addPersonBtn.addEventListener("click", async () => {
+  addPersonStatus.textContent = "Uploading...";
+  addPersonStatus.className = "";
+  addPersonBtn.disabled = true;
 
   const formData = new FormData();
-  formData.append("employee_id", empId);
-  formData.append("name", empName);
-  formData.append("file", fileInput.files[0]);
-
-  msgEl.textContent = "Saving...";
-  msgEl.className = "msg";
+  formData.append("employee_id", employeeIdInput.value.trim());
+  formData.append("name", nameInput.value.trim());
+  formData.append("file", personFileInput.files[0]);
 
   try {
     const res = await fetch(`${API_BASE}/admin/persons`, { method: "POST", body: formData });
     const data = await res.json();
+
     if (!res.ok) {
-      msgEl.textContent = "Error: " + (data.detail || res.statusText);
-      msgEl.className = "msg error";
+      addPersonStatus.textContent = "Error: " + (data.detail || res.statusText);
+      addPersonStatus.className = "error";
+      addPersonBtn.disabled = false;
       return;
     }
-    msgEl.textContent = `${data.name} (${data.employee_id}) ${data.action} successfully.`;
-    msgEl.className = "msg success";
-    document.getElementById("empIdInput").value = "";
-    document.getElementById("empNameInput").value = "";
-    fileInput.value = "";
-    loadStats();
-    loadPersonsTable();
+
+    const actionWord = data.action === "added" ? "added" : "updated";
+    addPersonStatus.textContent = `Success: ${data.employee_id} (${data.name}) was ${actionWord}.`;
+    addPersonStatus.className = "success";
+
+    employeeIdInput.value = "";
+    nameInput.value = "";
+    personFileInput.value = "";
+    updateAddPersonBtnState();
   } catch (e) {
-    msgEl.textContent = "Request failed: " + e.message;
-    msgEl.className = "msg error";
+    addPersonStatus.textContent = "Request failed: " + e.message;
+    addPersonStatus.className = "error";
+    addPersonBtn.disabled = false;
   }
 });
 
-// --- Add test images ---
-document.getElementById("addImagesBtn").addEventListener("click", async () => {
-  const filesInput = document.getElementById("testImagesInput");
-  const msgEl = document.getElementById("imagesMsg");
+// --- Delete panel: list + custom confirmation popup ---
+const personsListEl = document.getElementById("personsList");
+const personsEmptyEl = document.getElementById("personsEmpty");
+const personsListStatusEl = document.getElementById("personsListStatus");
 
-  if (!filesInput.files.length) {
-    msgEl.textContent = "Please choose at least one photo.";
-    msgEl.className = "msg error";
-    return;
-  }
+const confirmOverlay = document.getElementById("confirm-overlay");
+const confirmPhoto = document.getElementById("confirmPhoto");
+const confirmName = document.getElementById("confirmName");
+const confirmEmpId = document.getElementById("confirmEmpId");
+const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+let pendingDeletePerson = null;
 
-  const formData = new FormData();
-  for (const f of filesInput.files) formData.append("files", f);
-
-  msgEl.textContent = "Uploading and processing...";
-  msgEl.className = "msg";
-
+async function loadPersonsList() {
+  personsListStatusEl.textContent = "Loading...";
+  personsListStatusEl.className = "";
   try {
-    const res = await fetch(`${API_BASE}/admin/test_images`, { method: "POST", body: formData });
+    const res = await fetch(`${API_BASE}/persons`);
     const data = await res.json();
-    if (!res.ok) {
-      msgEl.textContent = "Error: " + (data.detail || res.statusText);
-      msgEl.className = "msg error";
-      return;
-    }
-    msgEl.textContent = `${data.photos_added} photo(s) added, ${data.faces_detected} face(s) detected, ${data.faces_matched} matched.`;
-    msgEl.className = "msg success";
-    filesInput.value = "";
-    loadStats();
+    renderPersonsList(data.persons);
+    personsListStatusEl.textContent = "";
   } catch (e) {
-    msgEl.textContent = "Request failed: " + e.message;
-    msgEl.className = "msg error";
+    personsListStatusEl.textContent = "Could not load persons list: " + e.message;
+    personsListStatusEl.className = "error";
   }
+}
+
+function renderPersonsList(persons) {
+  personsListEl.innerHTML = "";
+  personsEmptyEl.style.display = persons.length === 0 ? "block" : "none";
+
+  for (const p of persons) {
+    const row = document.createElement("div");
+    row.className = "person-row";
+
+    const img = document.createElement("img");
+    img.src = p.photo_url ? `${API_BASE}${encodeURI(p.photo_url)}` : "";
+    img.alt = p.name;
+
+    const info = document.createElement("div");
+    info.className = "person-info";
+    info.innerHTML = `${p.name} <span class="emp-id">${p.employee_id}</span>`;
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "deleteBtn";
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", () => openConfirmModal(p));
+
+    row.appendChild(img);
+    row.appendChild(info);
+    row.appendChild(delBtn);
+    personsListEl.appendChild(row);
+  }
+}
+
+function openConfirmModal(person) {
+  pendingDeletePerson = person;
+  confirmPhoto.src = person.photo_url ? `${API_BASE}${encodeURI(person.photo_url)}` : "";
+  confirmName.textContent = person.name;
+  confirmEmpId.textContent = person.employee_id;
+  confirmOverlay.classList.add("open");
+}
+
+function closeConfirmModal() {
+  confirmOverlay.classList.remove("open");
+  pendingDeletePerson = null;
+}
+
+confirmCancelBtn.addEventListener("click", closeConfirmModal);
+confirmOverlay.addEventListener("click", (e) => {
+  if (e.target === confirmOverlay) closeConfirmModal();
 });
 
-// --- Danger zone: delete everything ---
-document.getElementById("resetBtn").addEventListener("click", async () => {
-  const msgEl = document.getElementById("resetMsg");
-  if (!confirm("This will permanently delete ALL reference persons and ALL ingested photos. Are you sure?")) return;
-  if (!confirm("Really sure? This cannot be undone.")) return;
+confirmDeleteBtn.addEventListener("click", async () => {
+  if (!pendingDeletePerson) return;
+  const employeeId = pendingDeletePerson.employee_id;
 
-  msgEl.textContent = "Deleting...";
-  msgEl.className = "msg";
+  confirmDeleteBtn.disabled = true;
+  confirmDeleteBtn.textContent = "Deleting...";
 
   try {
-    const res = await fetch(`${API_BASE}/admin/reset?confirm=true`, { method: "DELETE" });
+    const res = await fetch(`${API_BASE}/admin/persons/${encodeURIComponent(employeeId)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+
+    confirmDeleteBtn.disabled = false;
+    confirmDeleteBtn.textContent = "Delete";
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      msgEl.textContent = "Error: " + (data.detail || res.statusText);
-      msgEl.className = "msg error";
+      personsListStatusEl.textContent = "Error: " + (data.detail || res.statusText);
+      personsListStatusEl.className = "error";
+      closeConfirmModal();
       return;
     }
-    msgEl.textContent = "All data deleted.";
-    msgEl.className = "msg success";
-    loadStats();
-    loadPersonsTable();
+
+    closeConfirmModal();
+    loadPersonsList();
   } catch (e) {
-    msgEl.textContent = "Request failed: " + e.message;
-    msgEl.className = "msg error";
+    confirmDeleteBtn.disabled = false;
+    confirmDeleteBtn.textContent = "Delete";
+    personsListStatusEl.textContent = "Request failed: " + e.message;
+    personsListStatusEl.className = "error";
   }
 });
 </script>

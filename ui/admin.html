@@ -212,12 +212,12 @@
   .image-card-footer span { font-size: 11px; color: #888; }
   .image-card-footer .deleteBtn { padding: 3px 8px; font-size: 12px; }
 
-  /* ---------- Confirmation modals ---------- */
+  /* ---------- Confirmation modals (must sit above the gallery viewer) ---------- */
   #confirm-overlay, #confirm-image-overlay {
     display: none;
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
-    z-index: 1000;
+    z-index: 1300;
     align-items: center; justify-content: center;
   }
   #confirm-overlay.open, #confirm-image-overlay.open { display: flex; }
@@ -240,21 +240,29 @@
   #confirmCancelBtn, #confirmImageCancelBtn { background: #e5e7eb; color: #111; }
   #confirmDeleteBtn, #confirmImageDeleteBtn { background: #dc2626; color: white; }
 
-  /* ---------- Full-page image viewer (works for any image, anywhere) ---------- */
-  #view-modal-overlay {
+  /* ---------- Gallery viewer: full-screen, with prev/next/annotate/delete ---------- */
+  #gallery-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.9);
     z-index: 1100;
     align-items: center;
     justify-content: center;
     padding: 30px;
   }
-  #view-modal-overlay.open { display: flex; }
-  #view-modal-content { position: relative; max-width: 90vw; max-height: 90vh; }
-  #view-modal-content img { max-width: 90vw; max-height: 90vh; display: block; border-radius: 6px; }
-  #view-modal-close {
+  #gallery-overlay.open { display: flex; }
+  #gallery-content {
+    position: relative;
+    max-width: 84vw;
+    max-height: 78vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  #gallery-content img { max-width: 84vw; max-height: 68vh; display: block; border-radius: 6px; }
+  #gallery-close {
     position: absolute;
     top: -40px;
     right: 0;
@@ -266,7 +274,28 @@
     font-size: 18px;
     line-height: 1;
     cursor: pointer;
+    text-align: center;
   }
+  .gallery-nav-btn {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.9);
+    color: #111;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 1101;
+  }
+  #galleryPrevBtn { left: 24px; }
+  #galleryNextBtn { right: 24px; }
+  .gallery-nav-btn:disabled { opacity: 0.25; cursor: default; }
+
+  #gallery-toolbar { display: flex; gap: 10px; }
+  #galleryAnnotateBtn { background: #e5e7eb; color: #111; font-weight: 600; }
+  #galleryDeleteBtn { background: #dc2626; color: white; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -429,34 +458,22 @@
   </div>
 </div>
 
-<!-- Full-page image viewer: works for any image, anywhere on this page -->
-<div id="view-modal-overlay">
-  <div id="view-modal-content">
-    <div id="view-modal-close">&times;</div>
-    <img id="view-modal-img" src="" alt="full view" />
+<!-- Gallery viewer: full-screen with prev/next, per-image annotate toggle, delete -->
+<div id="gallery-overlay">
+  <button class="gallery-nav-btn" id="galleryPrevBtn">&#8592;</button>
+  <div id="gallery-content">
+    <div id="gallery-close">&times;</div>
+    <img id="galleryImg" src="" alt="full view" />
+    <div id="gallery-toolbar">
+      <button id="galleryAnnotateBtn">Show Annotated</button>
+      <button id="galleryDeleteBtn">Delete</button>
+    </div>
   </div>
+  <button class="gallery-nav-btn" id="galleryNextBtn">&#8594;</button>
 </div>
 
 <script>
 const API_BASE = "http://127.0.0.1:8000";
-
-// --- Full-page image viewer (shared by every image on this page) ---
-const viewModalOverlay = document.getElementById("view-modal-overlay");
-const viewModalImg = document.getElementById("view-modal-img");
-const viewModalClose = document.getElementById("view-modal-close");
-
-function openViewModal(url) {
-  if (!url) return;
-  viewModalImg.src = url;
-  viewModalOverlay.classList.add("open");
-}
-function closeViewModal() {
-  viewModalOverlay.classList.remove("open");
-  viewModalImg.src = "";
-}
-viewModalClose.addEventListener("click", closeViewModal);
-viewModalOverlay.addEventListener("click", (e) => { if (e.target === viewModalOverlay) closeViewModal(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeViewModal(); });
 
 // --- Collapsible sidebar groups ---
 document.getElementById("toggleReference").addEventListener("click", () => {
@@ -492,6 +509,89 @@ function setActiveNav(id) {
 function showPanel(panelId) {
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === panelId));
 }
+
+// ============================================================
+// Gallery viewer (shared): full-screen, prev/next, per-image
+// annotate toggle, and a delete button -- used by both the
+// "Delete Person" list and the "Delete Test Images" grid.
+// ============================================================
+const galleryOverlay = document.getElementById("gallery-overlay");
+const galleryImg = document.getElementById("galleryImg");
+const galleryClose = document.getElementById("gallery-close");
+const galleryPrevBtn = document.getElementById("galleryPrevBtn");
+const galleryNextBtn = document.getElementById("galleryNextBtn");
+const galleryAnnotateBtn = document.getElementById("galleryAnnotateBtn");
+const galleryDeleteBtn = document.getElementById("galleryDeleteBtn");
+
+let galleryType = null;   // "persons" | "testImages"
+let galleryIndex = 0;
+let galleryAnnotated = false; // per-image toggle state while browsing
+
+function currentGalleryList() {
+  return galleryType === "persons" ? lastPersonsData : lastTestImagesData;
+}
+
+function galleryUrlFor(item) {
+  if (galleryType === "persons") {
+    if (!item.photo_url) return "";
+    return galleryAnnotated ? annotatedPersonUrl(item.employee_id) : `${API_BASE}${encodeURI(item.photo_url)}`;
+  }
+  return galleryAnnotated ? annotatedTestImageUrl(item.image_id) : `${API_BASE}${encodeURI(item.image_url)}`;
+}
+
+function openGallery(type, index) {
+  galleryType = type;
+  galleryIndex = index;
+  // Start in whichever mode that panel's grid is currently showing.
+  galleryAnnotated = (type === "persons" ? personsViewMode : testImagesViewMode) === "annotated";
+  renderGallery();
+  galleryOverlay.classList.add("open");
+}
+
+function renderGallery() {
+  const list = currentGalleryList();
+  if (list.length === 0) {
+    closeGallery();
+    return;
+  }
+  if (galleryIndex >= list.length) galleryIndex = list.length - 1;
+  if (galleryIndex < 0) galleryIndex = 0;
+
+  const item = list[galleryIndex];
+  galleryImg.src = galleryUrlFor(item);
+  galleryAnnotateBtn.textContent = galleryAnnotated ? "Show Original" : "Show Annotated";
+  galleryPrevBtn.disabled = galleryIndex === 0;
+  galleryNextBtn.disabled = galleryIndex === list.length - 1;
+}
+
+function closeGallery() {
+  galleryOverlay.classList.remove("open");
+  galleryImg.src = "";
+  galleryType = null;
+}
+
+galleryClose.addEventListener("click", closeGallery);
+galleryPrevBtn.addEventListener("click", () => { galleryIndex--; renderGallery(); });
+galleryNextBtn.addEventListener("click", () => { galleryIndex++; renderGallery(); });
+galleryAnnotateBtn.addEventListener("click", () => { galleryAnnotated = !galleryAnnotated; renderGallery(); });
+
+galleryDeleteBtn.addEventListener("click", () => {
+  const list = currentGalleryList();
+  const item = list[galleryIndex];
+  if (!item) return;
+  if (galleryType === "persons") {
+    openConfirmModal(item);
+  } else {
+    openImageConfirmModal(item);
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (!galleryOverlay.classList.contains("open")) return;
+  if (e.key === "Escape") closeGallery();
+  if (e.key === "ArrowLeft" && !galleryPrevBtn.disabled) { galleryIndex--; renderGallery(); }
+  if (e.key === "ArrowRight" && !galleryNextBtn.disabled) { galleryIndex++; renderGallery(); }
+});
 
 // --- Add / update reference person ---
 const employeeIdInput = document.getElementById("employeeIdInput");
@@ -592,6 +692,10 @@ async function loadPersonsList() {
     lastPersonsData = data.persons;
     renderPersonsList(lastPersonsData);
     personsListStatusEl.textContent = "";
+    // If the gallery is open on the persons list, keep it in sync (e.g. after a delete).
+    if (galleryType === "persons" && galleryOverlay.classList.contains("open")) {
+      renderGallery();
+    }
   } catch (e) {
     personsListStatusEl.textContent = "Could not load persons list: " + e.message;
     personsListStatusEl.className = "status-error";
@@ -602,7 +706,7 @@ function renderPersonsList(persons) {
   personsListEl.innerHTML = "";
   personsEmptyEl.style.display = persons.length === 0 ? "block" : "none";
 
-  for (const p of persons) {
+  persons.forEach((p, index) => {
     const row = document.createElement("div");
     row.className = "person-row";
 
@@ -612,7 +716,7 @@ function renderPersonsList(persons) {
     img.src = photoUrl;
     img.alt = p.name;
     if (photoUrl) {
-      img.addEventListener("click", () => openViewModal(photoUrl));
+      img.addEventListener("click", () => openGallery("persons", index));
     }
 
     const info = document.createElement("div");
@@ -628,7 +732,7 @@ function renderPersonsList(persons) {
     row.appendChild(info);
     row.appendChild(delBtn);
     personsListEl.appendChild(row);
-  }
+  });
 }
 
 function openConfirmModal(person) {
@@ -669,6 +773,8 @@ confirmDeleteBtn.addEventListener("click", async () => {
     }
 
     closeConfirmModal();
+    // Refresh the list; if the gallery was open, it auto-syncs to the
+    // next available photo (or closes if none are left).
     loadPersonsList();
   } catch (e) {
     confirmDeleteBtn.disabled = false;
@@ -852,6 +958,9 @@ async function loadTestImagesList() {
     lastTestImagesData = data.images;
     renderTestImagesGrid(lastTestImagesData);
     testImagesDeleteStatusEl.textContent = "";
+    if (galleryType === "testImages" && galleryOverlay.classList.contains("open")) {
+      renderGallery();
+    }
   } catch (e) {
     testImagesDeleteStatusEl.textContent = "Could not load test images: " + e.message;
     testImagesDeleteStatusEl.className = "status-error";
@@ -862,7 +971,7 @@ function renderTestImagesGrid(images) {
   imagesGridEl.innerHTML = "";
   testImagesDeleteEmptyEl.style.display = images.length === 0 ? "block" : "none";
 
-  for (const item of images) {
+  images.forEach((item, index) => {
     const card = document.createElement("div");
     card.className = "image-card";
 
@@ -871,7 +980,7 @@ function renderTestImagesGrid(images) {
     const img = document.createElement("img");
     img.src = url;
     img.alt = "test image";
-    img.addEventListener("click", () => openViewModal(url));
+    img.addEventListener("click", () => openGallery("testImages", index));
 
     const footer = document.createElement("div");
     footer.className = "image-card-footer";
@@ -889,7 +998,7 @@ function renderTestImagesGrid(images) {
     card.appendChild(img);
     card.appendChild(footer);
     imagesGridEl.appendChild(card);
-  }
+  });
 }
 
 function openImageConfirmModal(item) {
@@ -929,6 +1038,8 @@ confirmImageDeleteBtn.addEventListener("click", async () => {
     }
 
     closeImageConfirmModal();
+    // Refresh the grid; if the gallery was open, it auto-syncs to the
+    // next available photo (or closes if none are left).
     loadTestImagesList();
   } catch (e) {
     confirmImageDeleteBtn.disabled = false;

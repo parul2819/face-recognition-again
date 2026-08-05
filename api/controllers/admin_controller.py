@@ -1,3 +1,4 @@
+import io
 import re
 import sys
 import uuid
@@ -5,14 +6,15 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from core.face_utils import get_face_embeddings_from_array
 
 from api.config import IMAGES_DIR, PROJECT_ROOT, REFERENCE_IMAGES_DIR, SEARCH_THRESHOLD
 from api.db import get_pool
-from api.utils import embedding_to_pgvector
+from api.utils import blob_path_to_url, embedding_to_pgvector
 
 router = APIRouter()
 
@@ -25,6 +27,33 @@ def sanitize_for_filename(text: str) -> str:
     """Turn 'Rohit Sharma' into 'Rohit_Sharma', strip anything unsafe for a filename."""
     text = text.strip().replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_-]", "", text)
+
+
+def draw_labeled_box(img, x, y, w, h, label, matched):
+    """
+    Draws a bounding box + name label on img, scaled to the face's own
+    size (so photos with several small/close faces don't get giant
+    overlapping labels). Same visual style as the /identify endpoint.
+    """
+    x1, y1, x2, y2 = x, y, x + w, y + h
+    color = (0, 200, 0) if matched else (0, 0, 220)
+
+    face_size = max(w, h)
+    scale = max(0.35, min(1.0, face_size / 180))
+    box_thickness = max(1, round(scale * 3))
+    font_scale = round(0.45 * scale + 0.15, 2)
+    font_thickness = max(1, round(scale * 2))
+    pad = max(2, round(4 * scale))
+
+    cv2.rectangle(img, (x1, y1), (x2, y2), color, box_thickness)
+
+    (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
+    label_y = max(y1, text_h + pad * 2)
+    cv2.rectangle(img, (x1, label_y - text_h - pad * 2), (x1 + text_w + pad * 2, label_y), color, -1)
+    cv2.putText(
+        img, label, (x1 + pad, label_y - pad),
+        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), font_thickness,
+    )
 
 
 @router.get("/admin/stats")
@@ -76,8 +105,6 @@ async def add_or_update_person(
     pool = get_pool()
     async with pool.acquire() as conn:
         if not allow_duplicate:
-            # Look for the closest existing person, excluding this same
-            # employee_id (that case is a legitimate photo update, not a dupe).
             closest = await conn.fetchrow(
                 """
                 SELECT employee_id, name,
@@ -143,12 +170,78 @@ async def delete_person(employee_id: str):
     return {"employee_id": employee_id, "deleted": True}
 
 
+@router.get("/admin/persons/{employee_id}/annotated")
+async def get_person_annotated(employee_id: str):
+    """
+    Returns this person's reference photo with a box + their name drawn on
+    it, for the admin "Delete Person" list so the photo is unambiguous.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        person = await conn.fetchrow(
+            "SELECT name, reference_image_path FROM persons WHERE employee_id = $1",
+            employee_id,
+        )
+    if person is None or not person["reference_image_path"]:
+        raise HTTPException(status_code=404, detail=f"No reference photo for '{employee_id}'")
+
+    full_path = (PROJECT_ROOT / person["reference_image_path"]).resolve()
+    if not str(full_path).startswith(str(PROJECT_ROOT)) or not full_path.exists():
+        raise HTTPException(status_code=404, detail="Reference image file not found on disk")
+
+    img = cv2.imread(str(full_path))
+    if img is None:
+        raise HTTPException(status_code=500, detail="Could not read reference image file")
+
+    faces = get_face_embeddings_from_array(img)
+    if faces:
+        b = faces[0]["bbox"]
+        draw_labeled_box(img, b["x"], b["y"], b["width"], b["height"], person["name"], matched=True)
+
+    success, buffer = cv2.imencode(".jpg", img)
+    if not success:
+        raise HTTPException(status_code=500, detail="Could not encode annotated image")
+    return StreamingResponse(io.BytesIO(buffer.tobytes()), media_type="image/jpeg")
+
+
+@router.post("/admin/test_images/check_filenames")
+async def check_filenames_for_duplicates(filenames: list[str] = Body(..., embed=True)):
+    """
+    Given a list of filenames about to be uploaded, returns which ones are
+    already present in the test image library (by original filename) or
+    repeated within the submitted list itself. Called BEFORE the actual
+    upload, so the UI can warn the user and let them choose to proceed
+    with the remaining files or cancel.
+    """
+    seen = set()
+    intra_batch_dupes = set()
+    for name in filenames:
+        if name in seen:
+            intra_batch_dupes.add(name)
+        seen.add(name)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT original_filename FROM images WHERE original_filename = ANY($1::text[])",
+            filenames,
+        )
+    existing_dupes = {row["original_filename"] for row in rows}
+
+    all_duplicates = sorted(existing_dupes | intra_batch_dupes)
+    return {
+        "duplicate_filenames": all_duplicates,
+        "clean_filenames": [f for f in filenames if f not in all_duplicates],
+    }
+
+
 @router.post("/admin/test_images")
 async def add_test_images(files: list[UploadFile] = File(...)):
     """
     Add one or more new test/bulk photos incrementally (does NOT clear
     existing data). Detects faces, matches each against the persons table,
-    and inserts into the images table.
+    and inserts into the images table. Assumes duplicate filenames have
+    already been filtered out client-side via check_filenames_for_duplicates.
     """
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -202,12 +295,13 @@ async def add_test_images(files: list[UploadFile] = File(...)):
                 await conn.execute(
                     """
                     INSERT INTO images
-                        (image_id, blob_path, embedding, matched_person_id, confidence,
-                         bbox_x, bbox_y, bbox_w, bbox_h)
-                    VALUES ($1, $2, $3::vector, $4, $5, $6, $7, $8, $9)
+                        (image_id, blob_path, original_filename, embedding, matched_person_id,
+                         confidence, bbox_x, bbox_y, bbox_w, bbox_h)
+                    VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10)
                     """,
                     image_id,
                     blob_path,
+                    original_name,
                     embedding_str,
                     matched_person_id,
                     similarity,
@@ -222,6 +316,101 @@ async def add_test_images(files: list[UploadFile] = File(...)):
         "faces_detected": total_faces,
         "faces_matched": total_matched,
     }
+
+
+@router.get("/admin/test_images")
+async def list_test_images():
+    """
+    Returns every distinct test photo currently in the images table
+    (one entry per photo, not per face), for the admin delete panel.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT image_id, blob_path, COUNT(*) AS face_count
+            FROM images
+            GROUP BY image_id, blob_path
+            ORDER BY blob_path
+            """
+        )
+    return {
+        "images": [
+            {
+                "image_id": str(row["image_id"]),
+                "blob_path": row["blob_path"],
+                "image_url": blob_path_to_url(row["blob_path"]),
+                "face_count": row["face_count"],
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.get("/admin/test_images/{image_id}/annotated")
+async def get_test_image_annotated(image_id: str):
+    """
+    Returns a test photo with a box + name drawn on EVERY face already
+    stored for it (using the matched_person_id/bbox saved at ingestion --
+    no re-detection needed), for the admin "Delete Test Images" grid.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT i.blob_path, i.bbox_x, i.bbox_y, i.bbox_w, i.bbox_h, p.name
+            FROM images i
+            LEFT JOIN persons p ON p.person_id = i.matched_person_id
+            WHERE i.image_id = $1
+            """,
+            image_id,
+        )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No test image found with id '{image_id}'")
+
+    blob_path = rows[0]["blob_path"]
+    full_path = (PROJECT_ROOT / blob_path).resolve()
+    if not str(full_path).startswith(str(PROJECT_ROOT)) or not full_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+
+    img = cv2.imread(str(full_path))
+    if img is None:
+        raise HTTPException(status_code=500, detail="Could not read image file")
+
+    for row in rows:
+        label = row["name"] if row["name"] else "Unknown"
+        draw_labeled_box(
+            img, row["bbox_x"], row["bbox_y"], row["bbox_w"], row["bbox_h"],
+            label, matched=row["name"] is not None,
+        )
+
+    success, buffer = cv2.imencode(".jpg", img)
+    if not success:
+        raise HTTPException(status_code=500, detail="Could not encode annotated image")
+    return StreamingResponse(io.BytesIO(buffer.tobytes()), media_type="image/jpeg")
+
+
+@router.delete("/admin/test_images/{image_id}")
+async def delete_test_image(image_id: str):
+    """Removes one test photo (all its face rows) and its file on disk."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT blob_path FROM images WHERE image_id = $1 LIMIT 1", image_id
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"No test image found with id '{image_id}'")
+
+        await conn.execute("DELETE FROM images WHERE image_id = $1", image_id)
+
+    full_path = (PROJECT_ROOT / row["blob_path"]).resolve()
+    if str(full_path).startswith(str(PROJECT_ROOT)) and full_path.exists():
+        try:
+            full_path.unlink()
+        except OSError:
+            pass
+
+    return {"image_id": image_id, "deleted": True}
 
 
 @router.delete("/admin/reset")

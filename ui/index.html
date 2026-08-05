@@ -379,7 +379,7 @@ function makeCard(item) {
 }
 
 function openModal(item) {
-  modalImg.src = item.bbox ? annotatedUrlFor(item) : `${API_BASE}${item.image_url}`;
+  modalImg.src = imageUrlFor(item);
   modalOverlay.classList.add("open");
 }
 function closeModal() {

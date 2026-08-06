@@ -926,7 +926,7 @@ async function uploadTestImages(filesArray) {
     return;
   }
 
-  addTestImagesStatus.textContent = `Uploading and processing ${filesArray.length} photo(s)...`;
+  addTestImagesStatus.textContent = `Uploading ${filesArray.length} photo(s)...`;
   addTestImagesStatus.className = "";
   addTestImagesBtn.disabled = true;
 
@@ -936,6 +936,10 @@ async function uploadTestImages(filesArray) {
   }
 
   try {
+    // The server saves the files and starts processing them in the
+    // background, then responds immediately with a job id -- a large
+    // batch would otherwise keep this request open until every photo
+    // finished and risk timing out.
     const res = await fetch(`${API_BASE}/admin/test_images`, { method: "POST", body: formData });
     const data = await res.json();
 
@@ -946,6 +950,50 @@ async function uploadTestImages(filesArray) {
       return;
     }
 
+    await pollTestImagesJob(data.job_id);
+  } catch (e) {
+    addTestImagesStatus.textContent = "Request failed: " + e.message;
+    addTestImagesStatus.className = "status-error";
+    addTestImagesBtn.disabled = false;
+  }
+}
+
+// Polls the background upload job until it finishes (or fails), updating
+// the status line with live progress in the meantime.
+async function pollTestImagesJob(jobId) {
+  while (true) {
+    let data;
+    try {
+      const res = await fetch(`${API_BASE}/admin/test_images/jobs/${encodeURIComponent(jobId)}`);
+      data = await res.json();
+      if (!res.ok) {
+        addTestImagesStatus.textContent = "Error: " + (data.detail || res.statusText);
+        addTestImagesStatus.className = "status-error";
+        addTestImagesBtn.disabled = false;
+        return;
+      }
+    } catch (e) {
+      addTestImagesStatus.textContent = "Request failed: " + e.message;
+      addTestImagesStatus.className = "status-error";
+      addTestImagesBtn.disabled = false;
+      return;
+    }
+
+    if (data.status === "running") {
+      addTestImagesStatus.textContent = `Processing ${data.processed_files} / ${data.total_files} photo(s)...`;
+      addTestImagesStatus.className = "";
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      continue;
+    }
+
+    if (data.status === "error") {
+      addTestImagesStatus.textContent = "Error: " + (data.error || "Upload job failed.");
+      addTestImagesStatus.className = "status-error";
+      addTestImagesBtn.disabled = false;
+      return;
+    }
+
+    // status === "done"
     addTestImagesStatus.textContent =
       `Done. ${data.photos_added} photo(s) added, ${data.faces_detected} face(s) detected, ` +
       `${data.faces_matched} matched to a known person.`;
@@ -955,10 +1003,7 @@ async function uploadTestImages(filesArray) {
     addTestImagesBtn.disabled = true;
     pendingUploadFiles = null;
     pendingCleanFilenames = null;
-  } catch (e) {
-    addTestImagesStatus.textContent = "Request failed: " + e.message;
-    addTestImagesStatus.className = "status-error";
-    addTestImagesBtn.disabled = false;
+    return;
   }
 }
 

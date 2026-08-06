@@ -1,6 +1,9 @@
+import asyncio
 import io
+import os
 import re
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -10,13 +13,20 @@ from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from core.face_utils import get_face_embeddings_from_array
+from core.face_utils import get_face_embeddings_from_array, get_face_embeddings_from_array_bulk
 
 from api.config import IMAGES_DIR, PROJECT_ROOT, REFERENCE_IMAGES_DIR, SEARCH_THRESHOLD
 from api.db import get_pool
+from api.jobs import UploadJob, create_job, get_job
 from api.utils import blob_path_to_url, draw_labeled_box, embedding_to_pgvector
 
 router = APIRouter()
+
+# How many photos a bulk test-image upload processes at once. Each
+# in-flight photo's face detection runs single-threaded (see
+# core.face_utils._build_single_threaded_face_app), so this spreads work
+# across CPU cores instead of one photo hogging all of them at a time.
+BULK_UPLOAD_CONCURRENCY = min(4, os.cpu_count() or 4)
 
 # Threshold used specifically to catch "this photo already belongs to
 # someone else in the reference list" during person add/update.
@@ -240,87 +250,132 @@ async def check_filenames_for_duplicates(filenames: list[str] = Body(..., embed=
     }
 
 
+def _decode_save_and_detect(contents: bytes, save_path: Path) -> tuple[bool, list[dict]]:
+    """
+    Sync, CPU-bound work for one photo (decode, write to disk, run face
+    detection) -- run off the event loop via asyncio.to_thread so a bulk
+    upload doesn't freeze the whole server while it runs. Uses the
+    single-threaded model instance since several of these can be in flight
+    at once (see BULK_UPLOAD_CONCURRENCY). Returns (decoded_ok, faces);
+    faces is empty if decode failed or no face was found.
+    """
+    np_arr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    if img is None:
+        return False, []
+    cv2.imwrite(str(save_path), img)
+    return True, get_face_embeddings_from_array_bulk(img)
+
+
+async def _process_one_upload_photo(job: UploadJob, original_name: str, contents: bytes) -> None:
+    """Decodes/saves/detects one photo and inserts its face rows, updating `job` as it goes."""
+    suffix = Path(original_name).suffix or ".jpg"
+    unique_name = f"{uuid.uuid4().hex[:8]}_{Path(original_name).stem}{suffix}"
+    save_path = IMAGES_DIR / unique_name
+
+    decoded_ok, faces = await asyncio.to_thread(_decode_save_and_detect, contents, save_path)
+    job.processed_files += 1
+
+    if not decoded_ok or len(faces) == 0:
+        return
+
+    blob_path = str(save_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+    image_id = str(uuid.uuid4())
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for face in faces:
+            embedding_str = embedding_to_pgvector(face["embedding"])
+            match = await conn.fetchrow(
+                """
+                SELECT person_id,
+                       1 - (reference_embedding <=> $1::vector) AS similarity
+                FROM persons
+                ORDER BY reference_embedding <=> $1::vector
+                LIMIT 1
+                """,
+                embedding_str,
+            )
+
+            matched_person_id = None
+            similarity = None
+            if match is not None:
+                similarity = float(match["similarity"])
+                if similarity >= SEARCH_THRESHOLD:
+                    matched_person_id = match["person_id"]
+                    job.faces_matched += 1
+
+            b = face["bbox"]
+            await conn.execute(
+                """
+                INSERT INTO images
+                    (image_id, blob_path, original_filename, embedding, matched_person_id,
+                     confidence, bbox_x, bbox_y, bbox_w, bbox_h)
+                VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10)
+                """,
+                image_id,
+                blob_path,
+                original_name,
+                embedding_str,
+                matched_person_id,
+                similarity,
+                b["x"], b["y"], b["width"], b["height"],
+            )
+            job.faces_detected += 1
+
+    job.photos_added += 1
+
+
+async def _run_bulk_upload_job(job: UploadJob, files: list[tuple[str, bytes]]) -> None:
+    """
+    Background task: processes every photo in the batch (up to
+    BULK_UPLOAD_CONCURRENCY at once), updating `job` as it goes.
+    """
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    semaphore = asyncio.Semaphore(BULK_UPLOAD_CONCURRENCY)
+
+    async def _bounded(original_name: str, contents: bytes) -> None:
+        async with semaphore:
+            await _process_one_upload_photo(job, original_name, contents)
+
+    try:
+        await asyncio.gather(*(_bounded(name, contents) for name, contents in files))
+        job.status = "done"
+    except Exception as e:
+        job.status = "error"
+        job.error = str(e)
+    finally:
+        job.finished_at = time.time()
+
+
 @router.post("/admin/test_images")
 async def add_test_images(files: list[UploadFile] = File(...)):
     """
-    Add one or more new test/bulk photos incrementally (does NOT clear
-    existing data). Detects faces, matches each against the persons table,
-    and inserts into the images table. Assumes duplicate filenames have
-    already been filtered out client-side via check_filenames_for_duplicates.
+    Starts adding one or more new test/bulk photos incrementally (does NOT
+    clear existing data). Detects faces, matches each against the persons
+    table, and inserts into the images table. Assumes duplicate filenames
+    have already been filtered out client-side via
+    check_filenames_for_duplicates.
+
+    Processing happens in a background task so this returns immediately --
+    poll GET /admin/test_images/jobs/{job_id} for progress and the final
+    summary (photos_added/faces_detected/faces_matched).
     """
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    file_bytes = [(upload.filename or "photo.jpg", await upload.read()) for upload in files]
 
-    pool = get_pool()
-    total_photos = 0
-    total_faces = 0
-    total_matched = 0
+    job = create_job(total_files=len(file_bytes))
+    asyncio.create_task(_run_bulk_upload_job(job, file_bytes))
 
-    async with pool.acquire() as conn:
-        for upload in files:
-            contents = await upload.read()
-            np_arr = np.frombuffer(contents, np.uint8)
-            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            if img is None:
-                continue
+    return {"job_id": job.job_id, "total_files": job.total_files}
 
-            original_name = upload.filename or "photo.jpg"
-            suffix = Path(original_name).suffix or ".jpg"
-            unique_name = f"{uuid.uuid4().hex[:8]}_{Path(original_name).stem}{suffix}"
-            save_path = IMAGES_DIR / unique_name
-            cv2.imwrite(str(save_path), img)
-            blob_path = str(save_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
 
-            faces = get_face_embeddings_from_array(img)
-            if len(faces) == 0:
-                continue
-
-            image_id = str(uuid.uuid4())
-            for face in faces:
-                embedding_str = embedding_to_pgvector(face["embedding"])
-                match = await conn.fetchrow(
-                    """
-                    SELECT person_id,
-                           1 - (reference_embedding <=> $1::vector) AS similarity
-                    FROM persons
-                    ORDER BY reference_embedding <=> $1::vector
-                    LIMIT 1
-                    """,
-                    embedding_str,
-                )
-
-                matched_person_id = None
-                similarity = None
-                if match is not None:
-                    similarity = float(match["similarity"])
-                    if similarity >= SEARCH_THRESHOLD:
-                        matched_person_id = match["person_id"]
-                        total_matched += 1
-
-                b = face["bbox"]
-                await conn.execute(
-                    """
-                    INSERT INTO images
-                        (image_id, blob_path, original_filename, embedding, matched_person_id,
-                         confidence, bbox_x, bbox_y, bbox_w, bbox_h)
-                    VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10)
-                    """,
-                    image_id,
-                    blob_path,
-                    original_name,
-                    embedding_str,
-                    matched_person_id,
-                    similarity,
-                    b["x"], b["y"], b["width"], b["height"],
-                )
-                total_faces += 1
-
-            total_photos += 1
-
-    return {
-        "photos_added": total_photos,
-        "faces_detected": total_faces,
-        "faces_matched": total_matched,
-    }
+@router.get("/admin/test_images/jobs/{job_id}")
+async def get_test_images_job(job_id: str):
+    """Poll the progress and, once finished, the result of a bulk test-image upload job."""
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"No upload job found with id '{job_id}'")
+    return job.to_dict()
 
 
 @router.get("/admin/test_images")

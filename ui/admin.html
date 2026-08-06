@@ -424,6 +424,10 @@
           <label for="testImagesInput">Photos (you can select multiple)</label>
           <input type="file" id="testImagesInput" accept="image/*" multiple />
         </div>
+        <div class="field">
+          <label for="eventNameInput">Event name (optional)</label>
+          <input type="text" id="eventNameInput" placeholder="e.g. Annual Day 2026" />
+        </div>
         <button id="addTestImagesBtn" disabled>Add test images</button>
         <div id="addTestImagesStatus"></div>
 
@@ -833,6 +837,7 @@ confirmDeleteBtn.addEventListener("click", async () => {
 
 // --- Add test images (with filename-duplicate check before upload) ---
 const testImagesInput = document.getElementById("testImagesInput");
+const eventNameInput = document.getElementById("eventNameInput");
 const addTestImagesBtn = document.getElementById("addTestImagesBtn");
 const addTestImagesStatus = document.getElementById("addTestImagesStatus");
 const duplicateWarningBox = document.getElementById("duplicateWarningBox");
@@ -934,6 +939,9 @@ async function uploadTestImages(filesArray) {
   for (const file of filesArray) {
     formData.append("files", file);
   }
+  if (eventNameInput.value.trim()) {
+    formData.append("event_name", eventNameInput.value.trim());
+  }
 
   try {
     // The server saves the files and starts processing them in the
@@ -1000,6 +1008,7 @@ async function pollTestImagesJob(jobId) {
     addTestImagesStatus.className = "status-success";
 
     testImagesInput.value = "";
+    eventNameInput.value = "";
     addTestImagesBtn.disabled = true;
     pendingUploadFiles = null;
     pendingCleanFilenames = null;

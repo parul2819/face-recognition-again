@@ -12,7 +12,7 @@ DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
 DB_PORT = os.getenv("POSTGRES_PORT", "5432")
 
 SEARCH_THRESHOLD = float(os.getenv("SEARCH_THRESHOLD", os.getenv("MATCH_THRESHOLD", "0.35")))
-DEFAULT_PAGE_SIZE = int(os.getenv("SEARCH_PAGE_SIZE", "12"))
+DEFAULT_PAGE_SIZE = int(os.getenv("SEARCH_PAGE_SIZE", "14"))
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PICS_DIR = PROJECT_ROOT / "pics"

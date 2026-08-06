@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS images (
 -- In case this table already existed from before this column was added.
 ALTER TABLE images ADD COLUMN IF NOT EXISTS original_filename TEXT;
 
+-- Tags a photo with the event it was uploaded for (e.g. "Annual Day 2026"),
+-- set optionally at bulk upload time. Used by the search-page event filter.
+ALTER TABLE images ADD COLUMN IF NOT EXISTS event_name TEXT;
+
 -- employee_id is the true unique identifier (names can repeat across people).
 -- ON CONFLICT (employee_id) in ingest_reference_images.py relies on this index.
 CREATE UNIQUE INDEX IF NOT EXISTS persons_employee_id_unique_idx
@@ -46,3 +50,10 @@ CREATE INDEX IF NOT EXISTS images_image_id_idx
 -- For fast filename-based duplicate checking during upload.
 CREATE INDEX IF NOT EXISTS images_original_filename_idx
     ON images (original_filename);
+
+-- For the search-page date-range and event-name filters.
+CREATE INDEX IF NOT EXISTS images_uploaded_at_idx
+    ON images (uploaded_at);
+
+CREATE INDEX IF NOT EXISTS images_event_name_idx
+    ON images (event_name);

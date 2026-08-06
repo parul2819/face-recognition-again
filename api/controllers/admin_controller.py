@@ -267,11 +267,18 @@ def _decode_save_and_detect(contents: bytes, save_path: Path) -> tuple[bool, lis
     return True, get_face_embeddings_from_array_bulk(img)
 
 
-async def _process_one_upload_photo(job: UploadJob, original_name: str, contents: bytes) -> None:
-    """Decodes/saves/detects one photo and inserts its face rows, updating `job` as it goes."""
-    suffix = Path(original_name).suffix or ".jpg"
-    unique_name = f"{uuid.uuid4().hex[:8]}_{Path(original_name).stem}{suffix}"
-    save_path = IMAGES_DIR / unique_name
+async def _process_one_upload_photo(
+    job: UploadJob, original_name: str, contents: bytes, event_name: str | None
+) -> None:
+    """
+    Decodes/saves/detects one photo and inserts its face rows, updating `job`
+    as it goes. Saved under its own original filename (not a renamed copy),
+    so re-uploading a photo that's already sitting in IMAGES_DIR just
+    (re)writes the same path instead of creating a second file alongside it.
+    check_filenames_for_duplicates (called before upload) is what stops the
+    same photo from being added twice as separate database entries.
+    """
+    save_path = IMAGES_DIR / Path(original_name).name
 
     decoded_ok, faces = await asyncio.to_thread(_decode_save_and_detect, contents, save_path)
     job.processed_files += 1
@@ -310,8 +317,8 @@ async def _process_one_upload_photo(job: UploadJob, original_name: str, contents
                 """
                 INSERT INTO images
                     (image_id, blob_path, original_filename, embedding, matched_person_id,
-                     confidence, bbox_x, bbox_y, bbox_w, bbox_h)
-                VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10)
+                     confidence, bbox_x, bbox_y, bbox_w, bbox_h, event_name)
+                VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10, $11)
                 """,
                 image_id,
                 blob_path,
@@ -320,13 +327,16 @@ async def _process_one_upload_photo(job: UploadJob, original_name: str, contents
                 matched_person_id,
                 similarity,
                 b["x"], b["y"], b["width"], b["height"],
+                event_name,
             )
             job.faces_detected += 1
 
     job.photos_added += 1
 
 
-async def _run_bulk_upload_job(job: UploadJob, files: list[tuple[str, bytes]]) -> None:
+async def _run_bulk_upload_job(
+    job: UploadJob, files: list[tuple[str, bytes]], event_name: str | None
+) -> None:
     """
     Background task: processes every photo in the batch (up to
     BULK_UPLOAD_CONCURRENCY at once), updating `job` as it goes.
@@ -336,7 +346,7 @@ async def _run_bulk_upload_job(job: UploadJob, files: list[tuple[str, bytes]]) -
 
     async def _bounded(original_name: str, contents: bytes) -> None:
         async with semaphore:
-            await _process_one_upload_photo(job, original_name, contents)
+            await _process_one_upload_photo(job, original_name, contents, event_name)
 
     try:
         await asyncio.gather(*(_bounded(name, contents) for name, contents in files))
@@ -349,7 +359,10 @@ async def _run_bulk_upload_job(job: UploadJob, files: list[tuple[str, bytes]]) -
 
 
 @router.post("/admin/test_images")
-async def add_test_images(files: list[UploadFile] = File(...)):
+async def add_test_images(
+    files: list[UploadFile] = File(...),
+    event_name: str | None = Form(default=None),
+):
     """
     Starts adding one or more new test/bulk photos incrementally (does NOT
     clear existing data). Detects faces, matches each against the persons
@@ -357,14 +370,18 @@ async def add_test_images(files: list[UploadFile] = File(...)):
     have already been filtered out client-side via
     check_filenames_for_duplicates.
 
+    event_name (optional) tags every photo in this batch, so the search
+    page can later filter results down to a single event.
+
     Processing happens in a background task so this returns immediately --
     poll GET /admin/test_images/jobs/{job_id} for progress and the final
     summary (photos_added/faces_detected/faces_matched).
     """
     file_bytes = [(upload.filename or "photo.jpg", await upload.read()) for upload in files]
+    clean_event_name = event_name.strip() if event_name and event_name.strip() else None
 
     job = create_job(total_files=len(file_bytes))
-    asyncio.create_task(_run_bulk_upload_job(job, file_bytes))
+    asyncio.create_task(_run_bulk_upload_job(job, file_bytes, clean_event_name))
 
     return {"job_id": job.job_id, "total_files": job.total_files}
 

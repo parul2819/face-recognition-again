@@ -185,6 +185,18 @@
   #personsEmpty, #testImagesDeleteEmpty { font-size: 14px; color: #888; }
   #personsListStatus, #testImagesDeleteStatus { font-size: 13px; margin-top: 10px; }
 
+  .list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .list-toolbar .view-toggle { margin-bottom: 0; }
+  .deleteAllBtn { background: #dc2626; color: white; font-weight: 600; font-size: 13px; padding: 7px 14px; }
+  .deleteAllBtn:disabled { background: #9ca3af; cursor: default; }
+
   #imagesGrid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -236,9 +248,24 @@
   #confirm-box h3, #confirm-image-box h3 { font-size: 16px; margin: 0 0 2px; }
   #confirm-box .emp-id, #confirm-image-box .sub { font-size: 13px; color: #888; margin-bottom: 14px; }
   #confirm-box p, #confirm-image-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
-  #confirm-actions, #confirm-image-actions { display: flex; gap: 10px; justify-content: center; }
-  #confirmCancelBtn, #confirmImageCancelBtn { background: #e5e7eb; color: #111; }
-  #confirmDeleteBtn, #confirmImageDeleteBtn { background: #dc2626; color: white; }
+  #confirm-actions, #confirm-image-actions, #confirm-all-actions { display: flex; gap: 10px; justify-content: center; }
+  #confirmCancelBtn, #confirmImageCancelBtn, #confirmAllCancelBtn { background: #e5e7eb; color: #111; }
+  #confirmDeleteBtn, #confirmImageDeleteBtn, #confirmAllDeleteBtn { background: #dc2626; color: white; }
+
+  #confirm-all-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1300;
+    align-items: center; justify-content: center;
+  }
+  #confirm-all-overlay.open { display: flex; }
+  #confirm-all-box {
+    background: white; border-radius: 10px; padding: 22px; width: 340px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2); text-align: center;
+  }
+  #confirm-all-box h3 { font-size: 16px; margin: 0 0 10px; }
+  #confirm-all-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
 
   /* ---------- Gallery viewer: full-screen, with prev/next/annotate/delete ---------- */
   #gallery-overlay {
@@ -368,9 +395,12 @@
         ingested into the test set are not deleted, but will show as "Unknown" going forward.
       </div>
 
-      <div class="view-toggle" id="personsViewToggle">
-        <button class="view-toggle-btn active" id="personsOriginalBtn">Original View</button>
-        <button class="view-toggle-btn" id="personsAnnotatedBtn">Annotated View</button>
+      <div class="list-toolbar">
+        <div class="view-toggle" id="personsViewToggle">
+          <button class="view-toggle-btn active" id="personsOriginalBtn">Original View</button>
+          <button class="view-toggle-btn" id="personsAnnotatedBtn">Annotated View</button>
+        </div>
+        <button id="deleteAllPersonsBtn" class="deleteAllBtn" disabled>Delete All</button>
       </div>
 
       <div class="card-box narrow-card">
@@ -416,9 +446,12 @@
         affect the reference persons list).
       </div>
 
-      <div class="view-toggle" id="testImagesViewToggle">
-        <button class="view-toggle-btn active" id="testImagesOriginalBtn">Original View</button>
-        <button class="view-toggle-btn" id="testImagesAnnotatedBtn">Annotated View</button>
+      <div class="list-toolbar">
+        <div class="view-toggle" id="testImagesViewToggle">
+          <button class="view-toggle-btn active" id="testImagesOriginalBtn">Original View</button>
+          <button class="view-toggle-btn" id="testImagesAnnotatedBtn">Annotated View</button>
+        </div>
+        <button id="deleteAllTestImagesBtn" class="deleteAllBtn" disabled>Delete All</button>
       </div>
 
       <div class="card-box">
@@ -454,6 +487,18 @@
     <div id="confirm-image-actions">
       <button id="confirmImageCancelBtn">Cancel</button>
       <button id="confirmImageDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete-all confirmation popup (shared between persons and test images) -->
+<div id="confirm-all-overlay">
+  <div id="confirm-all-box">
+    <h3 id="confirmAllTitle"></h3>
+    <p id="confirmAllText"></p>
+    <div id="confirm-all-actions">
+      <button id="confirmAllCancelBtn">Cancel</button>
+      <button id="confirmAllDeleteBtn">Delete All</button>
     </div>
   </div>
 </div>
@@ -653,6 +698,7 @@ const personsEmptyEl = document.getElementById("personsEmpty");
 const personsListStatusEl = document.getElementById("personsListStatus");
 const personsOriginalBtn = document.getElementById("personsOriginalBtn");
 const personsAnnotatedBtn = document.getElementById("personsAnnotatedBtn");
+const deleteAllPersonsBtn = document.getElementById("deleteAllPersonsBtn");
 
 const confirmOverlay = document.getElementById("confirm-overlay");
 const confirmPhoto = document.getElementById("confirmPhoto");
@@ -691,6 +737,7 @@ async function loadPersonsList() {
     const data = await res.json();
     lastPersonsData = data.persons;
     renderPersonsList(lastPersonsData);
+    deleteAllPersonsBtn.disabled = lastPersonsData.length === 0;
     personsListStatusEl.textContent = "";
     // If the gallery is open on the persons list, keep it in sync (e.g. after a delete).
     if (galleryType === "persons" && galleryOverlay.classList.contains("open")) {
@@ -921,6 +968,7 @@ const testImagesDeleteEmptyEl = document.getElementById("testImagesDeleteEmpty")
 const testImagesDeleteStatusEl = document.getElementById("testImagesDeleteStatus");
 const testImagesOriginalBtn = document.getElementById("testImagesOriginalBtn");
 const testImagesAnnotatedBtn = document.getElementById("testImagesAnnotatedBtn");
+const deleteAllTestImagesBtn = document.getElementById("deleteAllTestImagesBtn");
 
 const confirmImageOverlay = document.getElementById("confirm-image-overlay");
 const confirmImagePhoto = document.getElementById("confirmImagePhoto");
@@ -957,6 +1005,7 @@ async function loadTestImagesList() {
     const data = await res.json();
     lastTestImagesData = data.images;
     renderTestImagesGrid(lastTestImagesData);
+    deleteAllTestImagesBtn.disabled = lastTestImagesData.length === 0;
     testImagesDeleteStatusEl.textContent = "";
     if (galleryType === "testImages" && galleryOverlay.classList.contains("open")) {
       renderGallery();
@@ -1046,6 +1095,77 @@ confirmImageDeleteBtn.addEventListener("click", async () => {
     confirmImageDeleteBtn.textContent = "Delete";
     testImagesDeleteStatusEl.textContent = "Request failed: " + e.message;
     testImagesDeleteStatusEl.className = "status-error";
+  }
+});
+
+// --- Delete All (shared confirmation modal for persons + test images) ---
+const confirmAllOverlay = document.getElementById("confirm-all-overlay");
+const confirmAllTitle = document.getElementById("confirmAllTitle");
+const confirmAllText = document.getElementById("confirmAllText");
+const confirmAllCancelBtn = document.getElementById("confirmAllCancelBtn");
+const confirmAllDeleteBtn = document.getElementById("confirmAllDeleteBtn");
+let pendingDeleteAllType = null; // "persons" | "testImages"
+
+deleteAllPersonsBtn.addEventListener("click", () => {
+  if (lastPersonsData.length === 0) return;
+  pendingDeleteAllType = "persons";
+  confirmAllTitle.textContent = "Delete all reference persons?";
+  confirmAllText.textContent =
+    `This permanently removes all ${lastPersonsData.length} reference person(s). ` +
+    `Their photos already ingested into the test set are not deleted, but will show as "Unknown" going forward. This cannot be undone.`;
+  confirmAllOverlay.classList.add("open");
+});
+
+deleteAllTestImagesBtn.addEventListener("click", () => {
+  if (lastTestImagesData.length === 0) return;
+  pendingDeleteAllType = "testImages";
+  confirmAllTitle.textContent = "Delete all test images?";
+  confirmAllText.textContent =
+    `This permanently removes all ${lastTestImagesData.length} test image(s) and their files. This cannot be undone.`;
+  confirmAllOverlay.classList.add("open");
+});
+
+function closeConfirmAllModal() {
+  confirmAllOverlay.classList.remove("open");
+  pendingDeleteAllType = null;
+}
+confirmAllCancelBtn.addEventListener("click", closeConfirmAllModal);
+confirmAllOverlay.addEventListener("click", (e) => { if (e.target === confirmAllOverlay) closeConfirmAllModal(); });
+
+confirmAllDeleteBtn.addEventListener("click", async () => {
+  if (!pendingDeleteAllType) return;
+  const type = pendingDeleteAllType;
+  const endpoint = type === "persons" ? "/admin/persons" : "/admin/test_images";
+  const statusEl = type === "persons" ? personsListStatusEl : testImagesDeleteStatusEl;
+
+  confirmAllDeleteBtn.disabled = true;
+  confirmAllDeleteBtn.textContent = "Deleting...";
+
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}?confirm=true`, { method: "DELETE" });
+    const data = await res.json();
+
+    confirmAllDeleteBtn.disabled = false;
+    confirmAllDeleteBtn.textContent = "Delete All";
+
+    if (!res.ok) {
+      statusEl.textContent = "Error: " + (data.detail || res.statusText);
+      statusEl.className = "status-error";
+      closeConfirmAllModal();
+      return;
+    }
+
+    closeConfirmAllModal();
+    if (type === "persons") {
+      await loadPersonsList();
+    } else {
+      await loadTestImagesList();
+    }
+  } catch (e) {
+    confirmAllDeleteBtn.disabled = false;
+    confirmAllDeleteBtn.textContent = "Delete All";
+    statusEl.textContent = "Request failed: " + e.message;
+    statusEl.className = "status-error";
   }
 });
 </script>

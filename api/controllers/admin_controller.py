@@ -14,7 +14,7 @@ from core.face_utils import get_face_embeddings_from_array
 
 from api.config import IMAGES_DIR, PROJECT_ROOT, REFERENCE_IMAGES_DIR, SEARCH_THRESHOLD
 from api.db import get_pool
-from api.utils import blob_path_to_url, embedding_to_pgvector
+from api.utils import blob_path_to_url, draw_labeled_box, embedding_to_pgvector
 
 router = APIRouter()
 
@@ -27,33 +27,6 @@ def sanitize_for_filename(text: str) -> str:
     """Turn 'Rohit Sharma' into 'Rohit_Sharma', strip anything unsafe for a filename."""
     text = text.strip().replace(" ", "_")
     return re.sub(r"[^A-Za-z0-9_-]", "", text)
-
-
-def draw_labeled_box(img, x, y, w, h, label, matched):
-    """
-    Draws a bounding box + name label on img, scaled to the face's own
-    size (so photos with several small/close faces don't get giant
-    overlapping labels). Same visual style as the /identify endpoint.
-    """
-    x1, y1, x2, y2 = x, y, x + w, y + h
-    color = (0, 200, 0) if matched else (0, 0, 220)
-
-    face_size = max(w, h)
-    scale = max(0.35, min(1.0, face_size / 180))
-    box_thickness = max(1, round(scale * 3))
-    font_scale = round(0.45 * scale + 0.15, 2)
-    font_thickness = max(1, round(scale * 2))
-    pad = max(2, round(4 * scale))
-
-    cv2.rectangle(img, (x1, y1), (x2, y2), color, box_thickness)
-
-    (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
-    label_y = max(y1, text_h + pad * 2)
-    cv2.rectangle(img, (x1, label_y - text_h - pad * 2), (x1 + text_w + pad * 2, label_y), color, -1)
-    cv2.putText(
-        img, label, (x1 + pad, label_y - pad),
-        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), font_thickness,
-    )
 
 
 @router.get("/admin/stats")
@@ -161,13 +134,45 @@ async def add_or_update_person(
 
 @router.delete("/admin/persons/{employee_id}")
 async def delete_person(employee_id: str):
-    """Remove a single reference person."""
+    """
+    Remove a single reference person. Any test-image faces previously
+    matched to them are unmatched (become "Unknown") rather than deleted,
+    since matched_person_id has no ON DELETE action of its own.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute("DELETE FROM persons WHERE employee_id = $1", employee_id)
-    if result == "DELETE 0":
-        raise HTTPException(status_code=404, detail=f"No person found with employee_id '{employee_id}'")
+        person = await conn.fetchrow("SELECT person_id FROM persons WHERE employee_id = $1", employee_id)
+        if person is None:
+            raise HTTPException(status_code=404, detail=f"No person found with employee_id '{employee_id}'")
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE images SET matched_person_id = NULL WHERE matched_person_id = $1", person["person_id"]
+            )
+            await conn.execute("DELETE FROM persons WHERE employee_id = $1", employee_id)
     return {"employee_id": employee_id, "deleted": True}
+
+
+@router.delete("/admin/persons")
+async def delete_all_persons(confirm: bool = False):
+    """
+    Removes every reference person. Any test-image faces that were matched
+    to a deleted person are unmatched ("Unknown") rather than deleted
+    themselves. Requires ?confirm=true, as a basic safety guard.
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="This deletes all reference persons. Call again with ?confirm=true to proceed.",
+        )
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("UPDATE images SET matched_person_id = NULL WHERE matched_person_id IS NOT NULL")
+            deleted_count = await conn.fetchval(
+                "WITH deleted AS (DELETE FROM persons RETURNING 1) SELECT COUNT(*) FROM deleted"
+            )
+    return {"deleted_count": deleted_count}
 
 
 @router.get("/admin/persons/{employee_id}/annotated")
@@ -411,6 +416,34 @@ async def delete_test_image(image_id: str):
             pass
 
     return {"image_id": image_id, "deleted": True}
+
+
+@router.delete("/admin/test_images")
+async def delete_all_test_images(confirm: bool = False):
+    """
+    Removes every test photo (all face rows) and their files on disk.
+    Requires ?confirm=true, as a basic safety guard.
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="This deletes all test images. Call again with ?confirm=true to proceed.",
+        )
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT DISTINCT blob_path FROM images")
+        await conn.execute("DELETE FROM images")
+
+    for row in rows:
+        full_path = (PROJECT_ROOT / row["blob_path"]).resolve()
+        if str(full_path).startswith(str(PROJECT_ROOT)) and full_path.exists():
+            try:
+                full_path.unlink()
+            except OSError:
+                pass
+
+    return {"deleted_count": len(rows)}
 
 
 @router.delete("/admin/reset")

@@ -145,6 +145,14 @@
   }
   #searchBtn:disabled, #identifyBtn:disabled { background: #9ca3af; cursor: default; }
 
+  #results-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
   #view-toggle {
     display: flex;
     gap: 6px;
@@ -154,6 +162,15 @@
   }
   .toggle-btn { background: transparent; color: #555; }
   .toggle-btn.active { background: #2563eb; color: white; }
+
+  #downloadAllBtn {
+    background: #16a34a;
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 7px 14px;
+  }
+  #downloadAllBtn:disabled { background: #9ca3af; cursor: default; }
 
   #status { font-size: 14px; color: #555; margin-bottom: 16px; }
 
@@ -167,14 +184,27 @@
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-    cursor: pointer;
   }
   .card img {
     width: 100%;
     height: 180px;
     object-fit: cover;
     display: block;
+    cursor: pointer;
   }
+  .card-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 6px 8px;
+  }
+  .downloadBtn {
+    background: #f1f1f3;
+    color: #333;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .downloadBtn:hover { background: #e5e7eb; }
+
   #loader { text-align: center; padding: 20px; color: #888; font-size: 14px; }
   #loadMoreBtn {
     display: block;
@@ -259,15 +289,19 @@
             </div>
             <button id="searchBtn" disabled>Search</button>
           </div>
-
-          <div id="view-toggle">
-            <button id="originalBtn" class="toggle-btn active">Original View</button>
-            <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
-          </div>
         </div>
       </div>
 
       <div id="status"></div>
+
+      <div id="results-toolbar">
+        <div id="view-toggle">
+          <button id="originalBtn" class="toggle-btn active">Original View</button>
+          <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
+        </div>
+        <button id="downloadAllBtn" disabled>Download All (.zip)</button>
+      </div>
+
       <div id="results"></div>
       <div id="loader"></div>
       <button id="loadMoreBtn" style="display:none">Load more</button>
@@ -308,12 +342,14 @@ let allResults = [];
 let allPersons = [];
 let selectedEmployeeId = null;
 let searchMode = "image"; // "image" | "employee"
+let searchedPersonName = null; // set when searchMode === "employee", used as the label in annotated downloads
 const PAGE_SIZE = 12;
 
 const fileInput = document.getElementById("fileInput");
 const searchBtn = document.getElementById("searchBtn");
 const originalBtn = document.getElementById("originalBtn");
 const annotatedBtn = document.getElementById("annotatedBtn");
+const downloadAllBtn = document.getElementById("downloadAllBtn");
 const statusEl = document.getElementById("status");
 const resultsEl = document.getElementById("results");
 const loaderEl = document.getElementById("loader");
@@ -437,6 +473,7 @@ searchBtn.addEventListener("click", () => {
   allResults = [];
   currentPage = 1;
   hasMore = false;
+  downloadAllBtn.disabled = true;
   fetchPage();
 });
 
@@ -466,16 +503,87 @@ function rerenderResults() {
   for (const item of allResults) resultsEl.appendChild(makeCard(item));
 }
 
+function triggerDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function filenameFor(item) {
+  const parts = item.blob_path.split("/");
+  return parts[parts.length - 1];
+}
+
 function makeCard(item) {
   const card = document.createElement("div");
   card.className = "card";
+
   const img = document.createElement("img");
   img.src = imageUrlFor(item);
   img.alt = "match";
+  img.addEventListener("click", () => openModalWithUrl(imageUrlFor(item)));
+
+  const footer = document.createElement("div");
+  footer.className = "card-footer";
+  const downloadBtn = document.createElement("button");
+  downloadBtn.className = "downloadBtn";
+  downloadBtn.textContent = "Download";
+  downloadBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    triggerDownload(imageUrlFor(item), filenameFor(item));
+  });
+  footer.appendChild(downloadBtn);
+
   card.appendChild(img);
-  card.addEventListener("click", () => openModalWithUrl(imageUrlFor(item)));
+  card.appendChild(footer);
   return card;
 }
+
+// --- Download All (zips everything currently loaded, respecting the view mode) ---
+downloadAllBtn.addEventListener("click", async () => {
+  if (allResults.length === 0) return;
+
+  downloadAllBtn.disabled = true;
+  downloadAllBtn.textContent = "Preparing zip...";
+
+  const payload = {
+    items: allResults.map(item => ({
+      blob_path: item.blob_path,
+      bbox: item.bbox ? {
+        x: item.bbox.x, y: item.bbox.y, width: item.bbox.width, height: item.bbox.height,
+      } : null,
+    })),
+    annotated: viewMode === "annotated",
+    label: searchMode === "employee" ? searchedPersonName : null,
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/download_zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = "Download error: " + (err.detail || res.statusText);
+      downloadAllBtn.disabled = false;
+      downloadAllBtn.textContent = "Download All (.zip)";
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, "search_results.zip");
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    statusEl.textContent = "Download failed: " + e.message;
+  }
+
+  downloadAllBtn.disabled = false;
+  downloadAllBtn.textContent = "Download All (.zip)";
+});
 
 // Generic full-screen viewer: pass any image URL (used by search result
 // cards AND the "Identify" result image below).
@@ -522,6 +630,7 @@ async function fetchPage() {
 
     const data = await res.json();
     hasMore = data.has_more;
+    if (searchMode === "employee") searchedPersonName = data.name;
     statusEl.textContent = `Found ${data.total_count} photo(s).`;
 
     for (const item of data.results) {
@@ -529,6 +638,7 @@ async function fetchPage() {
       resultsEl.appendChild(makeCard(item));
     }
 
+    downloadAllBtn.disabled = allResults.length === 0;
     loaderEl.textContent = "";
     loadMoreBtn.style.display = hasMore ? "block" : "none";
     currentPage += 1;

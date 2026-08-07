@@ -397,11 +397,6 @@
     <!-- ================= ADD / UPDATE REFERENCE PERSON ================= -->
     <div class="panel active" id="panel-add">
       <h2>Add or update a reference person</h2>
-      <div class="panel-subtitle">
-        These are the known individuals the system will recognize by name (e.g. employees).
-        Use this when someone new joins, or to replace an existing person's reference photo
-        (same Employee ID = updates their photo instead of creating a duplicate).
-      </div>
       <div class="card-box narrow-card">
         <div class="field">
           <label for="employeeIdInput">Employee ID</label>
@@ -412,7 +407,7 @@
           <input type="text" id="nameInput" placeholder="e.g. Priya Sharma" />
         </div>
         <div class="field">
-          <label>Reference photos (1-5, clear solo face -- a few different angles makes matching stronger)</label>
+          <label>Reference photos (1-2, clear solo face -- a second angle makes matching stronger)</label>
 
           <div class="camera-row">
             <button type="button" id="openCameraBtn">Open Camera</button>
@@ -436,10 +431,6 @@
     <!-- ================= DELETE REFERENCE PERSON ================= -->
     <div class="panel" id="panel-delete">
       <h2>Delete a reference person</h2>
-      <div class="panel-subtitle">
-        Permanently removes someone from the known-people list. Their photos already
-        ingested into the test set are not deleted, but will show as "Unknown" going forward.
-      </div>
 
       <div class="list-toolbar">
         <div class="view-toggle" id="personsViewToggle">
@@ -459,12 +450,6 @@
     <!-- ================= ADD TEST IMAGES ================= -->
     <div class="panel" id="panel-test-images">
       <h2>Add test images</h2>
-      <div class="panel-subtitle">
-        This is for the searchable test/bulk photo library (not the reference list above).
-        Upload any number of photos — the system will detect faces and match them
-        against the reference persons automatically. Files with a filename that's
-        already in the library are flagged before uploading.
-      </div>
       <div class="card-box narrow-card">
         <div class="field">
           <label for="testImagesInput">Photos (you can select multiple)</label>
@@ -491,10 +476,6 @@
     <!-- ================= DELETE TEST IMAGES ================= -->
     <div class="panel" id="panel-delete-images">
       <h2>Delete test images</h2>
-      <div class="panel-subtitle">
-        Removes a photo from the searchable test/bulk photo library (this does not
-        affect the reference persons list).
-      </div>
 
       <div class="list-toolbar">
         <div class="view-toggle" id="testImagesViewToggle">
@@ -705,13 +686,13 @@ const cameraPreviewWrap = document.getElementById("cameraPreviewWrap");
 const cameraPreview = document.getElementById("cameraPreview");
 const captureCanvas = document.getElementById("captureCanvas");
 
-const MAX_REFERENCE_PHOTOS = 5;
+const MAX_REFERENCE_PHOTOS = 2;
 let stagedPhotos = []; // [{blob, url}] -- from camera capture and/or file upload, combined
 let cameraStream = null;
 
 function updatePhotoCountHint() {
   photoCountHint.textContent = `${stagedPhotos.length} / ${MAX_REFERENCE_PHOTOS} photo(s) staged` +
-    (stagedPhotos.length > 0 && stagedPhotos.length < 2 ? " -- add a couple more angles for stronger matching" : "");
+    (stagedPhotos.length === 1 ? " -- add one more angle for stronger matching" : "");
 }
 
 function renderThumbs() {

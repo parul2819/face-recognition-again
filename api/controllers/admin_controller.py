@@ -54,7 +54,7 @@ async def get_stats():
     }
 
 
-MAX_REFERENCE_PHOTOS = 5
+MAX_REFERENCE_PHOTOS = 2
 
 
 @router.post("/admin/persons")
@@ -68,7 +68,7 @@ async def add_or_update_person(
     Add a new reference person, or update an existing one's photo (same
     employee_id = update, new employee_id = add).
 
-    Accepts 1-5 photos (e.g. a few camera-captured angles of the same
+    Accepts 1-2 photos (e.g. a couple of camera-captured angles of the same
     person). Each photo must show exactly one face; their embeddings are
     averaged into a single, more robust reference_embedding -- matching
     against several angles this way holds up better than a single photo.

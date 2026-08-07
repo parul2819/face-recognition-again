@@ -67,7 +67,6 @@
   #main-content {
     flex: 1;
     padding: 24px 32px;
-    max-width: 900px;
   }
   .panel { display: none; }
   .panel.active { display: block; }
@@ -84,18 +83,44 @@
   #search-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
   }
-  #search-inputs {
+  .filter-group {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex: 1;
-    min-width: 240px;
+    gap: 6px;
+    flex-shrink: 0;
   }
-  #employee-input-wrap { position: relative; flex: 1; max-width: 320px; }
+  .filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    white-space: nowrap;
+  }
+  .filter-group input[type="date"] {
+    width: 130px;
+  }
+  .filter-group select {
+    width: 110px;
+  }
+  .filter-group input[type="date"],
+  .filter-group select {
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+  }
+  #employee-input-wrap { position: relative; width: 200px; }
+  #eventOnlySelect {
+    width: 200px;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+  }
   #employeeInput {
     width: 100%;
     font-size: 14px;
@@ -148,27 +173,31 @@
   #results-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
   }
   #view-toggle {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     background: #f1f1f3;
-    padding: 4px;
-    border-radius: 8px;
+    padding: 3px;
+    border-radius: 7px;
   }
-  .toggle-btn { background: transparent; color: #555; }
+  .toggle-btn {
+    background: transparent;
+    color: #555;
+    font-size: 12px;
+    padding: 5px 9px;
+  }
   .toggle-btn.active { background: #2563eb; color: white; }
 
   #downloadAllBtn {
     background: #16a34a;
     color: white;
     font-weight: 600;
-    font-size: 13px;
-    padding: 7px 14px;
+    font-size: 12px;
+    padding: 6px 10px;
   }
   #downloadAllBtn:disabled { background: #9ca3af; cursor: default; }
 
@@ -238,8 +267,16 @@
     padding: 30px;
   }
   #modal-overlay.open { display: flex; }
-  #modal-content { position: relative; max-width: 90vw; max-height: 90vh; }
-  #modal-content img { max-width: 90vw; max-height: 90vh; display: block; border-radius: 6px; }
+  #modal-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  #modal-content img { max-width: 90vw; max-height: 78vh; display: block; border-radius: 6px; }
   #modal-close {
     position: absolute;
     top: -40px;
@@ -253,6 +290,29 @@
     line-height: 1;
     cursor: pointer;
   }
+  .modal-nav-btn {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.9);
+    color: #111;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 1001;
+  }
+  #modalPrevBtn { left: 24px; }
+  #modalNextBtn { right: 24px; }
+  .modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
+  /* Simple mode (e.g. the Identify Photo result) has no nav/annotate controls */
+  #modal-overlay.modal-simple .modal-nav-btn,
+  #modal-overlay.modal-simple #modal-toolbar {
+    display: none;
+  }
+  #modal-toolbar { display: flex; gap: 10px; }
+  #modalAnnotateBtn { background: #e5e7eb; color: #111; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -264,6 +324,7 @@
     <button class="nav-item active" data-panel="panel-search" id="navSearch">Search by Image</button>
     <button class="nav-item" data-panel="panel-search" id="navSearchEmp">Search by Employee ID</button>
     <button class="nav-item" data-panel="panel-identify" id="navIdentify">Identify Photo</button>
+    <button class="nav-item" data-panel="panel-search" id="navSearchEvent">Search by Event</button>
     <div id="sidebar-footer">
       <a id="adminLink" href="/admin.html">Admin &rarr;</a>
     </div>
@@ -273,34 +334,51 @@
 
     <!-- ================= SEARCH PANEL ================= -->
     <div class="panel active" id="panel-search">
-      <h2>Search photos by face</h2>
+      <h2 id="panelSearchHeading">Search photos by face</h2>
 
       <div id="control-bar" class="card-box">
         <div id="search-row">
-          <div id="search-inputs">
-            <div id="image-input-group">
-              <input type="file" id="fileInput" accept="image/*" />
+          <div id="image-input-group">
+            <input type="file" id="fileInput" accept="image/*" />
+          </div>
+          <div id="employee-input-group" style="display:none">
+            <div id="employee-input-wrap">
+              <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
+              <div id="suggestions"></div>
             </div>
-            <div id="employee-input-group" style="display:none">
-              <div id="employee-input-wrap">
-                <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
-                <div id="suggestions"></div>
-              </div>
+          </div>
+          <div id="event-input-group" style="display:none">
+            <select id="eventOnlySelect">
+              <option value="" disabled selected>Select an event</option>
+            </select>
+          </div>
+
+          <div class="filter-group" id="eventFilterGroup">
+            <label for="eventSelect">Event</label>
+            <select id="eventSelect"><option value="">All events</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="dateFromInput">From</label>
+            <input type="date" id="dateFromInput" />
+          </div>
+          <div class="filter-group">
+            <label for="dateToInput">To</label>
+            <input type="date" id="dateToInput" />
+          </div>
+
+          <button id="searchBtn" disabled>Search</button>
+
+          <div id="results-toolbar">
+            <div id="view-toggle">
+              <button id="originalBtn" class="toggle-btn active">Original View</button>
+              <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
             </div>
-            <button id="searchBtn" disabled>Search</button>
+            <button id="downloadAllBtn" disabled>Download All (.zip)</button>
           </div>
         </div>
       </div>
 
       <div id="status"></div>
-
-      <div id="results-toolbar">
-        <div id="view-toggle">
-          <button id="originalBtn" class="toggle-btn active">Original View</button>
-          <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
-        </div>
-        <button id="downloadAllBtn" disabled>Download All (.zip)</button>
-      </div>
 
       <div id="results"></div>
       <div id="loader"></div>
@@ -324,10 +402,15 @@
 </div>
 
 <div id="modal-overlay">
+  <button class="modal-nav-btn" id="modalPrevBtn">&#8592;</button>
   <div id="modal-content">
     <div id="modal-close">&times;</div>
     <img id="modal-img" src="" alt="full view" />
+    <div id="modal-toolbar">
+      <button id="modalAnnotateBtn">Show Annotated</button>
+    </div>
   </div>
+  <button class="modal-nav-btn" id="modalNextBtn">&#8594;</button>
 </div>
 
 <script>
@@ -357,11 +440,27 @@ const loadMoreBtn = document.getElementById("loadMoreBtn");
 const modalOverlay = document.getElementById("modal-overlay");
 const modalImg = document.getElementById("modal-img");
 const modalClose = document.getElementById("modal-close");
+const modalPrevBtn = document.getElementById("modalPrevBtn");
+const modalNextBtn = document.getElementById("modalNextBtn");
+const modalAnnotateBtn = document.getElementById("modalAnnotateBtn");
+
+let modalMode = null;    // "results" (nav + annotate) | "simple" (Identify Photo)
+let modalIndex = 0;
+let modalAnnotated = false;
 
 const employeeInputGroup = document.getElementById("employee-input-group");
 const imageInputGroup = document.getElementById("image-input-group");
 const employeeInput = document.getElementById("employeeInput");
 const suggestionsEl = document.getElementById("suggestions");
+
+const eventInputGroup = document.getElementById("event-input-group");
+const eventOnlySelect = document.getElementById("eventOnlySelect");
+const eventFilterGroup = document.getElementById("eventFilterGroup");
+const panelSearchHeading = document.getElementById("panelSearchHeading");
+
+const dateFromInput = document.getElementById("dateFromInput");
+const dateToInput = document.getElementById("dateToInput");
+const eventSelect = document.getElementById("eventSelect");
 
 // --- Sidebar navigation ---
 const navButtons = document.querySelectorAll(".nav-item");
@@ -385,26 +484,40 @@ document.getElementById("navIdentify").addEventListener("click", () => {
   setActiveNav("navIdentify");
   showPanel("panel-identify");
 });
+document.getElementById("navSearchEvent").addEventListener("click", () => {
+  setActiveNav("navSearchEvent");
+  setSearchMode("event");
+  showPanel("panel-search");
+});
 
 function setActiveNav(id) {
   navButtons.forEach(b => b.classList.toggle("active", b.id === id));
 }
 
-// --- Search mode (image vs employee), driven by sidebar now ---
+// --- Search mode (image / employee / event), driven by sidebar now ---
 function setSearchMode(mode) {
   searchMode = mode;
   imageInputGroup.style.display = mode === "image" ? "" : "none";
   employeeInputGroup.style.display = mode === "employee" ? "" : "none";
+  eventInputGroup.style.display = mode === "event" ? "" : "none";
+  // The optional Event filter (used to narrow image/employee search) would
+  // be redundant with the event picker above, so it's hidden in event mode.
+  eventFilterGroup.style.display = mode === "event" ? "none" : "";
+  panelSearchHeading.textContent = mode === "event" ? "Browse photos by event" : "Search photos by face";
   updateSearchBtnState();
 }
 
 function updateSearchBtnState() {
   if (searchMode === "image") {
     searchBtn.disabled = !selectedFile;
-  } else {
+  } else if (searchMode === "employee") {
     searchBtn.disabled = !selectedEmployeeId;
+  } else {
+    searchBtn.disabled = !eventOnlySelect.value;
   }
 }
+
+eventOnlySelect.addEventListener("change", updateSearchBtnState);
 
 // --- Load the reference persons list for the dropdown/typeahead ---
 async function loadPersons() {
@@ -417,6 +530,40 @@ async function loadPersons() {
   }
 }
 loadPersons();
+
+// --- Load known event names for the filter dropdown ---
+async function loadSearchFilters() {
+  try {
+    const res = await fetch(`${API_BASE}/search/filters`);
+    const data = await res.json();
+
+    eventSelect.innerHTML = '<option value="">All events</option>';
+    eventOnlySelect.innerHTML = '<option value="" disabled selected>Select an event</option>';
+    for (const ev of data.event_names) {
+      const opt = document.createElement("option");
+      opt.value = ev;
+      opt.textContent = ev;
+      eventSelect.appendChild(opt);
+
+      const opt2 = document.createElement("option");
+      opt2.value = ev;
+      opt2.textContent = ev;
+      eventOnlySelect.appendChild(opt2);
+    }
+  } catch (e) {
+    console.error("Could not load search filters", e);
+  }
+}
+loadSearchFilters();
+
+// Builds the shared date/event query params used by both search endpoints.
+function buildFilterParams() {
+  const params = new URLSearchParams();
+  if (dateFromInput.value) params.set("date_from", dateFromInput.value);
+  if (dateToInput.value) params.set("date_to", dateToInput.value);
+  if (eventSelect.value) params.set("event_name", eventSelect.value);
+  return params;
+}
 
 function renderSuggestions(list) {
   suggestionsEl.innerHTML = "";
@@ -488,19 +635,24 @@ function setViewMode(mode) {
 }
 
 function annotatedUrlFor(item) {
-  const b = item.bbox;
-  return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
-         `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
+  if (item.bbox) {
+    const b = item.bbox;
+    return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
+           `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
+  }
+  // Event-browse results have no single matched face/bbox -- draw a
+  // labeled box on every face already stored for that photo instead.
+  return `${API_BASE}/admin/test_images/${item.image_id}/annotated`;
 }
 
 function imageUrlFor(item) {
-  if (viewMode === "annotated" && item.bbox) return annotatedUrlFor(item);
+  if (viewMode === "annotated") return annotatedUrlFor(item);
   return `${API_BASE}${item.image_url}`;
 }
 
 function rerenderResults() {
   resultsEl.innerHTML = "";
-  for (const item of allResults) resultsEl.appendChild(makeCard(item));
+  allResults.forEach((item, index) => resultsEl.appendChild(makeCard(item, index)));
 }
 
 function triggerDownload(url, filename) {
@@ -517,14 +669,14 @@ function filenameFor(item) {
   return parts[parts.length - 1];
 }
 
-function makeCard(item) {
+function makeCard(item, index) {
   const card = document.createElement("div");
   card.className = "card";
 
   const img = document.createElement("img");
   img.src = imageUrlFor(item);
   img.alt = "match";
-  img.addEventListener("click", () => openModalWithUrl(imageUrlFor(item)));
+  img.addEventListener("click", () => openModal(index));
 
   const footer = document.createElement("div");
   footer.className = "card-footer";
@@ -585,24 +737,66 @@ downloadAllBtn.addEventListener("click", async () => {
   downloadAllBtn.textContent = "Download All (.zip)";
 });
 
-// Generic full-screen viewer: pass any image URL (used by search result
-// cards AND the "Identify" result image below).
-function openModalWithUrl(url) {
-  modalImg.src = url;
+// Full-screen viewer for search result cards: prev/next through the
+// currently loaded results, plus a per-image annotate toggle.
+function openModal(index) {
+  modalMode = "results";
+  modalIndex = index;
+  modalAnnotated = viewMode === "annotated";
+  modalOverlay.classList.remove("modal-simple");
+  renderModal();
   modalOverlay.classList.add("open");
 }
+
+function renderModal() {
+  if (allResults.length === 0) {
+    closeModal();
+    return;
+  }
+  if (modalIndex >= allResults.length) modalIndex = allResults.length - 1;
+  if (modalIndex < 0) modalIndex = 0;
+
+  const item = allResults[modalIndex];
+  modalImg.src = modalAnnotated ? annotatedUrlFor(item) : `${API_BASE}${item.image_url}`;
+  modalAnnotateBtn.textContent = modalAnnotated ? "Show Original" : "Show Annotated";
+  modalPrevBtn.disabled = modalIndex === 0;
+  modalNextBtn.disabled = modalIndex === allResults.length - 1;
+}
+
+// Simple full-screen viewer with no nav/annotate -- used by the
+// "Identify" result image below, which is already a single composite image.
+function openModalWithUrl(url) {
+  modalMode = "simple";
+  modalImg.src = url;
+  modalOverlay.classList.add("modal-simple");
+  modalOverlay.classList.add("open");
+}
+
 function closeModal() {
   modalOverlay.classList.remove("open");
   modalImg.src = "";
+  modalMode = null;
 }
+
 modalClose.addEventListener("click", closeModal);
 modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+modalPrevBtn.addEventListener("click", () => { modalIndex--; renderModal(); });
+modalNextBtn.addEventListener("click", () => { modalIndex++; renderModal(); });
+modalAnnotateBtn.addEventListener("click", () => { modalAnnotated = !modalAnnotated; renderModal(); });
+
+document.addEventListener("keydown", (e) => {
+  if (!modalOverlay.classList.contains("open")) return;
+  if (e.key === "Escape") { closeModal(); return; }
+  if (modalMode !== "results") return;
+  if (e.key === "ArrowLeft" && !modalPrevBtn.disabled) { modalIndex--; renderModal(); }
+  if (e.key === "ArrowRight" && !modalNextBtn.disabled) { modalIndex++; renderModal(); }
+});
 
 async function fetchPage() {
   if (isLoading) return;
   if (searchMode === "image" && !selectedFile) return;
   if (searchMode === "employee" && !selectedEmployeeId) return;
+  if (searchMode === "event" && !eventOnlySelect.value) return;
 
   isLoading = true;
   loaderEl.textContent = "Loading...";
@@ -610,13 +804,19 @@ async function fetchPage() {
 
   try {
     let res;
+    const filterParams = buildFilterParams();
     if (searchMode === "image") {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}`;
+      const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
       res = await fetch(url, { method: "POST", body: formData });
+    } else if (searchMode === "employee") {
+      filterParams.set("employee_id", selectedEmployeeId);
+      const url = `${API_BASE}/search_by_employee?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
+      res = await fetch(url, { method: "GET" });
     } else {
-      const url = `${API_BASE}/search_by_employee?employee_id=${encodeURIComponent(selectedEmployeeId)}&page=${currentPage}&page_size=${PAGE_SIZE}`;
+      filterParams.set("event_name", eventOnlySelect.value);
+      const url = `${API_BASE}/search_by_event?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
       res = await fetch(url, { method: "GET" });
     }
 
@@ -635,7 +835,7 @@ async function fetchPage() {
 
     for (const item of data.results) {
       allResults.push(item);
-      resultsEl.appendChild(makeCard(item));
+      resultsEl.appendChild(makeCard(item, allResults.length - 1));
     }
 
     downloadAllBtn.disabled = allResults.length === 0;

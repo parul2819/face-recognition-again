@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 import cv2
@@ -17,17 +18,52 @@ from api.utils import blob_path_to_url, embedding_to_pgvector
 router = APIRouter()
 
 
-async def run_embedding_search(conn, embedding_value, page: int, page_size: int):
+async def run_embedding_search(
+    conn,
+    embedding_value,
+    page: int,
+    page_size: int,
+    threshold: float,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    event_name: str | None = None,
+):
     """
     Shared search logic: given an embedding, run a live cosine-similarity
     search against images.embedding, dedupe to the best face per photo, and
     paginate. Used by both /search (uploaded image) and /search_by_employee
     (reference image re-detected fresh from disk).
+
+    threshold overrides the SEARCH_THRESHOLD .env default so the UI can
+    adjust it per search. date_from/date_to filter on uploaded_at (both
+    inclusive, compared by calendar day); event_name is an exact match.
     """
     offset = (page - 1) * page_size
 
+    # $1 is always the query embedding; filters get appended before the
+    # threshold/limit/offset params so their placeholder numbers stay in sync.
+    params: list = [embedding_value]
+    conditions = []
+    if date_from is not None:
+        params.append(date_from)
+        conditions.append(f"uploaded_at::date >= ${len(params)}")
+    if date_to is not None:
+        params.append(date_to)
+        conditions.append(f"uploaded_at::date <= ${len(params)}")
+    if event_name:
+        params.append(event_name)
+        conditions.append(f"event_name = ${len(params)}")
+    where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    params.append(threshold)
+    threshold_idx = len(params)
+    params.append(page_size)
+    limit_idx = len(params)
+    params.append(offset)
+    offset_idx = len(params)
+
     rows = await conn.fetch(
-        """
+        f"""
         WITH ranked AS (
             SELECT
                 image_id,
@@ -39,22 +75,20 @@ async def run_embedding_search(conn, embedding_value, page: int, page_size: int)
                     ORDER BY embedding <=> $1::vector
                 ) AS rn
             FROM images
+            {where_sql}
         ),
         best_per_image AS (
             SELECT image_id, blob_path, bbox_x, bbox_y, bbox_w, bbox_h, similarity
             FROM ranked
-            WHERE rn = 1 AND similarity >= $2
+            WHERE rn = 1 AND similarity >= ${threshold_idx}
         )
         SELECT image_id, blob_path, bbox_x, bbox_y, bbox_w, bbox_h, similarity,
                COUNT(*) OVER () AS total_count
         FROM best_per_image
         ORDER BY similarity DESC
-        LIMIT $3 OFFSET $4
+        LIMIT ${limit_idx} OFFSET ${offset_idx}
         """,
-        embedding_value,
-        SEARCH_THRESHOLD,
-        page_size,
-        offset,
+        *params,
     )
 
     total_count = rows[0]["total_count"] if rows else 0
@@ -84,11 +118,102 @@ def embedding_from_face_list(faces) -> str:
     return embedding_to_pgvector(query_face["embedding"])
 
 
+@router.get("/search/filters")
+async def get_search_filters():
+    """
+    Filter options for the search page: the default similarity threshold
+    (from .env, used to preset the UI slider) and every distinct event name
+    currently tagged on test images (for the event dropdown).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT event_name FROM images WHERE event_name IS NOT NULL ORDER BY event_name"
+        )
+    return {
+        "default_threshold": SEARCH_THRESHOLD,
+        "event_names": [row["event_name"] for row in rows],
+    }
+
+
+@router.get("/search_by_event")
+async def search_by_event(
+    event_name: str = Query(...),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=100),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+):
+    """
+    Browse every photo tagged with a given event -- no uploaded/reference
+    face involved, just a plain filter deduped to one row per photo
+    (images has one row per detected face, so several rows can share an
+    image_id).
+    """
+    offset = (page - 1) * page_size
+
+    params: list = [event_name]
+    conditions = ["event_name = $1"]
+    if date_from is not None:
+        params.append(date_from)
+        conditions.append(f"uploaded_at::date >= ${len(params)}")
+    if date_to is not None:
+        params.append(date_to)
+        conditions.append(f"uploaded_at::date <= ${len(params)}")
+    where_sql = " AND ".join(conditions)
+
+    params.append(page_size)
+    limit_idx = len(params)
+    params.append(offset)
+    offset_idx = len(params)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            WITH photos AS (
+                SELECT image_id, blob_path, MIN(uploaded_at) AS uploaded_at
+                FROM images
+                WHERE {where_sql}
+                GROUP BY image_id, blob_path
+            )
+            SELECT image_id, blob_path, COUNT(*) OVER () AS total_count
+            FROM photos
+            ORDER BY uploaded_at DESC
+            LIMIT ${limit_idx} OFFSET ${offset_idx}
+            """,
+            *params,
+        )
+
+    total_count = rows[0]["total_count"] if rows else 0
+    results = [
+        {
+            "image_id": str(row["image_id"]),
+            "blob_path": row["blob_path"],
+            "image_url": blob_path_to_url(row["blob_path"]),
+        }
+        for row in rows
+    ]
+
+    return {
+        "event_name": event_name,
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "has_more": (page - 1) * page_size + len(results) < total_count,
+        "results": results,
+    }
+
+
 @router.post("/search")
 async def search_by_image(
     file: UploadFile = File(...),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=100),
+    threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    event_name: str | None = Query(default=None),
 ):
     contents = await file.read()
     np_arr = np.frombuffer(contents, np.uint8)
@@ -102,10 +227,13 @@ async def search_by_image(
         raise HTTPException(status_code=422, detail="No face detected in the uploaded image")
 
     embedding_str = embedding_from_face_list(faces)
+    effective_threshold = threshold if threshold is not None else SEARCH_THRESHOLD
 
     pool = get_pool()
     async with pool.acquire() as conn:
-        total_count, results = await run_embedding_search(conn, embedding_str, page, page_size)
+        total_count, results = await run_embedding_search(
+            conn, embedding_str, page, page_size, effective_threshold, date_from, date_to, event_name
+        )
 
     return {
         "query_faces_detected": len(faces),
@@ -122,6 +250,10 @@ async def search_by_employee(
     employee_id: str = Query(...),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=100),
+    threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    event_name: str | None = Query(default=None),
 ):
     """
     Name/person search: loads this person's reference photo from disk and
@@ -157,8 +289,11 @@ async def search_by_employee(
             raise HTTPException(status_code=500, detail="No face detected in the reference image")
 
         embedding_str = embedding_from_face_list(faces)
+        effective_threshold = threshold if threshold is not None else SEARCH_THRESHOLD
 
-        total_count, results = await run_embedding_search(conn, embedding_str, page, page_size)
+        total_count, results = await run_embedding_search(
+            conn, embedding_str, page, page_size, effective_threshold, date_from, date_to, event_name
+        )
 
     return {
         "employee_id": employee_id,

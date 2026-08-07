@@ -128,6 +128,39 @@
   .status-success { color: #16a34a; }
   .status-error { color: #dc2626; }
 
+  /* ---------- Camera capture (reference photos) ---------- */
+  .camera-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .camera-row button { background: #e5e7eb; color: #111; }
+  #capturePhotoBtn { background: #2563eb; color: white; font-weight: 600; }
+  #capturePhotoBtn:disabled { background: #9ca3af; cursor: default; }
+  #cameraPreviewWrap { display: none; margin-bottom: 10px; }
+  #cameraPreviewWrap.open { display: block; }
+  #cameraPreview {
+    width: 100%;
+    max-width: 360px;
+    border-radius: 8px;
+    background: #111;
+    display: block;
+  }
+  #photoThumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .photo-thumb { position: relative; width: 72px; height: 72px; }
+  .photo-thumb img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db;
+  }
+  .photo-thumb-remove {
+    position: absolute; top: -6px; right: -6px;
+    background: #dc2626; color: white;
+    border-radius: 50%; width: 20px; height: 20px;
+    font-size: 12px; line-height: 20px; text-align: center;
+    cursor: pointer; padding: 0;
+  }
+  #photoCountHint { font-size: 12px; color: #888; margin-bottom: 10px; }
+
   #duplicateWarningBox {
     display: none;
     margin-top: 14px;
@@ -379,8 +412,21 @@
           <input type="text" id="nameInput" placeholder="e.g. Priya Sharma" />
         </div>
         <div class="field">
-          <label for="personFileInput">Reference photo (one clear, solo face photo)</label>
-          <input type="file" id="personFileInput" accept="image/*" />
+          <label>Reference photos (1-5, clear solo face -- a few different angles makes matching stronger)</label>
+
+          <div class="camera-row">
+            <button type="button" id="openCameraBtn">Open Camera</button>
+            <button type="button" id="capturePhotoBtn" style="display:none">Capture Photo</button>
+            <button type="button" id="closeCameraBtn" style="display:none">Close Camera</button>
+          </div>
+          <div id="cameraPreviewWrap">
+            <video id="cameraPreview" autoplay playsinline muted></video>
+          </div>
+          <canvas id="captureCanvas" style="display:none"></canvas>
+
+          <input type="file" id="personFileInput" accept="image/*" multiple />
+          <div id="photoCountHint"></div>
+          <div id="photoThumbs"></div>
         </div>
         <button id="addPersonBtn" disabled>Add / update person</button>
         <div id="addPersonStatus"></div>
@@ -423,6 +469,10 @@
         <div class="field">
           <label for="testImagesInput">Photos (you can select multiple)</label>
           <input type="file" id="testImagesInput" accept="image/*" multiple />
+        </div>
+        <div class="field">
+          <label for="eventNameInput">Event name (optional)</label>
+          <input type="text" id="eventNameInput" placeholder="e.g. Annual Day 2026" />
         </div>
         <button id="addTestImagesBtn" disabled>Add test images</button>
         <div id="addTestImagesStatus"></div>
@@ -553,6 +603,7 @@ function setActiveNav(id) {
 }
 function showPanel(panelId) {
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === panelId));
+  if (panelId !== "panel-add") stopCamera();
 }
 
 // ============================================================
@@ -644,17 +695,116 @@ const nameInput = document.getElementById("nameInput");
 const personFileInput = document.getElementById("personFileInput");
 const addPersonBtn = document.getElementById("addPersonBtn");
 const addPersonStatus = document.getElementById("addPersonStatus");
+const photoCountHint = document.getElementById("photoCountHint");
+const photoThumbsEl = document.getElementById("photoThumbs");
+
+const openCameraBtn = document.getElementById("openCameraBtn");
+const capturePhotoBtn = document.getElementById("capturePhotoBtn");
+const closeCameraBtn = document.getElementById("closeCameraBtn");
+const cameraPreviewWrap = document.getElementById("cameraPreviewWrap");
+const cameraPreview = document.getElementById("cameraPreview");
+const captureCanvas = document.getElementById("captureCanvas");
+
+const MAX_REFERENCE_PHOTOS = 5;
+let stagedPhotos = []; // [{blob, url}] -- from camera capture and/or file upload, combined
+let cameraStream = null;
+
+function updatePhotoCountHint() {
+  photoCountHint.textContent = `${stagedPhotos.length} / ${MAX_REFERENCE_PHOTOS} photo(s) staged` +
+    (stagedPhotos.length > 0 && stagedPhotos.length < 2 ? " -- add a couple more angles for stronger matching" : "");
+}
+
+function renderThumbs() {
+  photoThumbsEl.innerHTML = "";
+  stagedPhotos.forEach((photo, index) => {
+    const thumb = document.createElement("div");
+    thumb.className = "photo-thumb";
+
+    const img = document.createElement("img");
+    img.src = photo.url;
+    thumb.appendChild(img);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "photo-thumb-remove";
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      URL.revokeObjectURL(stagedPhotos[index].url);
+      stagedPhotos.splice(index, 1);
+      renderThumbs();
+    });
+    thumb.appendChild(removeBtn);
+
+    photoThumbsEl.appendChild(thumb);
+  });
+  updatePhotoCountHint();
+  updateAddPersonBtnState();
+}
+
+function addStagedPhoto(blob) {
+  if (stagedPhotos.length >= MAX_REFERENCE_PHOTOS) return false;
+  stagedPhotos.push({ blob, url: URL.createObjectURL(blob) });
+  renderThumbs();
+  return true;
+}
 
 function updateAddPersonBtnState() {
   addPersonBtn.disabled = !(
     employeeIdInput.value.trim() &&
     nameInput.value.trim() &&
-    personFileInput.files.length > 0
+    stagedPhotos.length > 0
   );
+  capturePhotoBtn.disabled = stagedPhotos.length >= MAX_REFERENCE_PHOTOS;
 }
 employeeIdInput.addEventListener("input", updateAddPersonBtnState);
 nameInput.addEventListener("input", updateAddPersonBtnState);
-personFileInput.addEventListener("change", updateAddPersonBtnState);
+
+personFileInput.addEventListener("change", () => {
+  for (const file of personFileInput.files) {
+    if (!addStagedPhoto(file)) break; // hit MAX_REFERENCE_PHOTOS
+  }
+  personFileInput.value = ""; // so selecting the same file(s) again still fires "change"
+});
+
+// --- Camera capture ---
+async function openCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+  } catch (e) {
+    addPersonStatus.textContent = "Could not access camera: " + e.message;
+    addPersonStatus.className = "status-error";
+    return;
+  }
+  cameraPreview.srcObject = cameraStream;
+  cameraPreviewWrap.classList.add("open");
+  openCameraBtn.style.display = "none";
+  capturePhotoBtn.style.display = "";
+  closeCameraBtn.style.display = "";
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraPreview.srcObject = null;
+  cameraPreviewWrap.classList.remove("open");
+  openCameraBtn.style.display = "";
+  capturePhotoBtn.style.display = "none";
+  closeCameraBtn.style.display = "none";
+}
+
+openCameraBtn.addEventListener("click", openCamera);
+closeCameraBtn.addEventListener("click", stopCamera);
+
+capturePhotoBtn.addEventListener("click", () => {
+  captureCanvas.width = cameraPreview.videoWidth;
+  captureCanvas.height = cameraPreview.videoHeight;
+  captureCanvas.getContext("2d").drawImage(cameraPreview, 0, 0);
+  captureCanvas.toBlob(blob => {
+    if (blob) addStagedPhoto(blob);
+  }, "image/jpeg", 0.92);
+});
 
 addPersonBtn.addEventListener("click", async () => {
   addPersonStatus.textContent = "Uploading...";
@@ -664,7 +814,9 @@ addPersonBtn.addEventListener("click", async () => {
   const formData = new FormData();
   formData.append("employee_id", employeeIdInput.value.trim());
   formData.append("name", nameInput.value.trim());
-  formData.append("file", personFileInput.files[0]);
+  stagedPhotos.forEach((photo, index) => {
+    formData.append("files", photo.blob, `photo_${index}.jpg`);
+  });
 
   try {
     const res = await fetch(`${API_BASE}/admin/persons`, { method: "POST", body: formData });
@@ -678,13 +830,16 @@ addPersonBtn.addEventListener("click", async () => {
     }
 
     const actionWord = data.action === "added" ? "added" : "updated";
-    addPersonStatus.textContent = `Success: ${data.employee_id} (${data.name}) was ${actionWord}.`;
+    addPersonStatus.textContent =
+      `Success: ${data.employee_id} (${data.name}) was ${actionWord} using ${data.photos_used} photo(s).`;
     addPersonStatus.className = "status-success";
 
     employeeIdInput.value = "";
     nameInput.value = "";
-    personFileInput.value = "";
-    updateAddPersonBtnState();
+    stagedPhotos.forEach(photo => URL.revokeObjectURL(photo.url));
+    stagedPhotos = [];
+    renderThumbs();
+    stopCamera();
   } catch (e) {
     addPersonStatus.textContent = "Request failed: " + e.message;
     addPersonStatus.className = "status-error";
@@ -833,6 +988,7 @@ confirmDeleteBtn.addEventListener("click", async () => {
 
 // --- Add test images (with filename-duplicate check before upload) ---
 const testImagesInput = document.getElementById("testImagesInput");
+const eventNameInput = document.getElementById("eventNameInput");
 const addTestImagesBtn = document.getElementById("addTestImagesBtn");
 const addTestImagesStatus = document.getElementById("addTestImagesStatus");
 const duplicateWarningBox = document.getElementById("duplicateWarningBox");
@@ -934,6 +1090,9 @@ async function uploadTestImages(filesArray) {
   for (const file of filesArray) {
     formData.append("files", file);
   }
+  if (eventNameInput.value.trim()) {
+    formData.append("event_name", eventNameInput.value.trim());
+  }
 
   try {
     // The server saves the files and starts processing them in the
@@ -1000,6 +1159,7 @@ async function pollTestImagesJob(jobId) {
     addTestImagesStatus.className = "status-success";
 
     testImagesInput.value = "";
+    eventNameInput.value = "";
     addTestImagesBtn.disabled = true;
     pendingUploadFiles = null;
     pendingCleanFilenames = null;

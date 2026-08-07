@@ -54,36 +54,64 @@ async def get_stats():
     }
 
 
+MAX_REFERENCE_PHOTOS = 5
+
+
 @router.post("/admin/persons")
 async def add_or_update_person(
     employee_id: str = Form(...),
     name: str = Form(...),
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     allow_duplicate: bool = Form(False),
 ):
     """
     Add a new reference person, or update an existing one's photo (same
-    employee_id = update, new employee_id = add). Saves the photo under
-    pics/reference pics/ and stores the embedding + path in persons table.
+    employee_id = update, new employee_id = add).
+
+    Accepts 1-5 photos (e.g. a few camera-captured angles of the same
+    person). Each photo must show exactly one face; their embeddings are
+    averaged into a single, more robust reference_embedding -- matching
+    against several angles this way holds up better than a single photo.
+    The photo with the largest detected face is kept on disk as
+    reference_image_path (used for the annotated preview and for
+    search_by_employee's fresh re-detection).
 
     Before adding a NEW employee_id, checks whether this face already
     belongs to a DIFFERENT existing employee_id, to catch accidental
     duplicate uploads (same person added twice under different IDs).
     Pass allow_duplicate=true to force it through anyway.
     """
-    contents = await file.read()
-    np_arr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="Could not decode uploaded image")
+    if len(files) > MAX_REFERENCE_PHOTOS:
+        raise HTTPException(
+            status_code=400, detail=f"Upload at most {MAX_REFERENCE_PHOTOS} reference photos"
+        )
 
-    faces = get_face_embeddings_from_array(img)
-    if len(faces) == 0:
-        raise HTTPException(status_code=422, detail="No face detected in the uploaded photo")
-    if len(faces) > 1:
-        raise HTTPException(status_code=422, detail="Multiple faces detected; please upload a solo photo")
+    decoded: list[tuple] = []
+    for upload in files:
+        contents = await upload.read()
+        np_arr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(status_code=400, detail=f"Could not decode photo '{upload.filename}'")
 
-    embedding_str = embedding_to_pgvector(faces[0]["embedding"])
+        faces = get_face_embeddings_from_array(img)
+        if len(faces) == 0:
+            raise HTTPException(
+                status_code=422, detail=f"No face detected in photo '{upload.filename}'"
+            )
+        if len(faces) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Multiple faces detected in photo '{upload.filename}'; please use solo photos",
+            )
+        decoded.append((img, faces[0]))
+
+    avg_embedding = np.mean([face["embedding"] for _, face in decoded], axis=0)
+    embedding_str = embedding_to_pgvector(avg_embedding)
+
+    # Largest detected face = clearest/most zoomed-in shot -- best one to
+    # keep as the single on-disk reference photo.
+    best_img, _ = max(decoded, key=lambda pair: pair[1]["bbox"]["width"] * pair[1]["bbox"]["height"])
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -116,7 +144,7 @@ async def add_or_update_person(
         safe_name = sanitize_for_filename(name)
         filename = f"{safe_employee_id}_{safe_name}.jpg"
         save_path = REFERENCE_IMAGES_DIR / filename
-        cv2.imwrite(str(save_path), img)
+        cv2.imwrite(str(save_path), best_img)
         reference_image_path = str(save_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
 
         result = await conn.fetchrow(
@@ -138,6 +166,7 @@ async def add_or_update_person(
     return {
         "employee_id": employee_id,
         "name": name,
+        "photos_used": len(files),
         "action": "added" if result["inserted"] else "updated",
     }
 

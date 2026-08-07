@@ -16,7 +16,8 @@ dependencies = [
     "python-multipart (>=0.0.32,<0.0.33)",
     "opencv-python (>=5.0.0.93,<6.0.0.0)",
     "python-dotenv (>=1.0.0,<2.0.0)",
-    "dotenv (>=0.9.9,<0.10.0)"
+    "dotenv (>=0.9.9,<0.10.0)",
+    "requests (>=2.34.0,<3.0.0)"
 ]
 
 

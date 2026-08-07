@@ -14,7 +14,7 @@ ALTER TABLE persons ADD COLUMN IF NOT EXISTS reference_image_path TEXT;
 CREATE TABLE IF NOT EXISTS images (
     face_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     image_id UUID NOT NULL,
-    blob_path TEXT NOT NULL,
+    blob_path TEXT,
     original_filename TEXT,
     embedding vector(512) NOT NULL,
     matched_person_id UUID REFERENCES persons(person_id),
@@ -32,6 +32,16 @@ ALTER TABLE images ADD COLUMN IF NOT EXISTS original_filename TEXT;
 -- Tags a photo with the event it was uploaded for (e.g. "Annual Day 2026"),
 -- set optionally at bulk upload time. Used by the search-page event filter.
 ALTER TABLE images ADD COLUMN IF NOT EXISTS event_name TEXT;
+
+-- In case this table already existed from before blob_path allowed NULL.
+-- Rows sourced from a remote URL (see source_url below) have no local file,
+-- so blob_path can no longer be guaranteed NOT NULL.
+ALTER TABLE images ALTER COLUMN blob_path DROP NOT NULL;
+
+-- Public URL of a remotely-sourced image (e.g. a Wikimedia Commons file),
+-- used instead of blob_path when the image isn't stored locally. Nullable
+-- and independent of blob_path -- exactly one of the two should be set.
+ALTER TABLE images ADD COLUMN IF NOT EXISTS source_url TEXT;
 
 -- employee_id is the true unique identifier (names can repeat across people).
 -- ON CONFLICT (employee_id) in ingest_reference_images.py relies on this index.

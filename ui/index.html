@@ -634,6 +634,15 @@ function setViewMode(mode) {
   rerenderResults();
 }
 
+// item.image_url is either a local, API-relative path ("/pics/9.jpg") or,
+// for remote-sourced rows (Wikimedia/OneDrive), already an absolute URL
+// ("https://upload.wikimedia.org/..."). Only prefix API_BASE in the first
+// case -- doing it for both produces an invalid concatenated URL.
+function resolveImageUrl(rawUrl) {
+  if (!rawUrl) return "";
+  return /^https?:\/\//i.test(rawUrl) ? rawUrl : `${API_BASE}${rawUrl}`;
+}
+
 function annotatedUrlFor(item) {
   if (item.bbox) {
     const b = item.bbox;
@@ -647,7 +656,7 @@ function annotatedUrlFor(item) {
 
 function imageUrlFor(item) {
   if (viewMode === "annotated") return annotatedUrlFor(item);
-  return `${API_BASE}${item.image_url}`;
+  return resolveImageUrl(item.image_url);
 }
 
 function rerenderResults() {
@@ -665,8 +674,19 @@ function triggerDownload(url, filename) {
 }
 
 function filenameFor(item) {
-  const parts = item.blob_path.split("/");
-  return parts[parts.length - 1];
+  if (item.blob_path) {
+    const parts = item.blob_path.split("/");
+    return parts[parts.length - 1];
+  }
+  if (item.source_url) {
+    try {
+      const parts = new URL(item.source_url).pathname.split("/");
+      return parts[parts.length - 1] || "image.jpg";
+    } catch (e) {
+      return "image.jpg";
+    }
+  }
+  return "image.jpg";
 }
 
 function makeCard(item, index) {
@@ -704,6 +724,7 @@ downloadAllBtn.addEventListener("click", async () => {
   const payload = {
     items: allResults.map(item => ({
       blob_path: item.blob_path,
+      source_url: item.source_url,
       bbox: item.bbox ? {
         x: item.bbox.x, y: item.bbox.y, width: item.bbox.width, height: item.bbox.height,
       } : null,
@@ -757,7 +778,7 @@ function renderModal() {
   if (modalIndex < 0) modalIndex = 0;
 
   const item = allResults[modalIndex];
-  modalImg.src = modalAnnotated ? annotatedUrlFor(item) : `${API_BASE}${item.image_url}`;
+  modalImg.src = modalAnnotated ? annotatedUrlFor(item) : resolveImageUrl(item.image_url);
   modalAnnotateBtn.textContent = modalAnnotated ? "Show Original" : "Show Annotated";
   modalPrevBtn.disabled = modalIndex === 0;
   modalNextBtn.disabled = modalIndex === allResults.length - 1;

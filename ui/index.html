@@ -154,6 +154,31 @@
     cursor: pointer;
   }
 
+  /* ---------- Camera capture (search by image) ---------- */
+  #openCameraBtn { background: #e5e7eb; color: #111; }
+  #cameraThumb {
+    display: none;
+    width: 42px;
+    height: 42px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  #cameraPreviewWrap { display: none; margin-top: 10px; }
+  #cameraPreviewWrap.open { display: block; }
+  #cameraPreview {
+    width: 280px;
+    max-width: 100%;
+    border-radius: 8px;
+    background: #000;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .camera-row { display: flex; gap: 8px; }
+  .camera-row button { background: #e5e7eb; color: #111; }
+  #capturePhotoBtn { background: #2563eb; color: white; font-weight: 600; }
+
   button {
     padding: 8px 16px;
     border: none;
@@ -340,6 +365,8 @@
         <div id="search-row">
           <div id="image-input-group">
             <input type="file" id="fileInput" accept="image/*" />
+            <button type="button" id="openCameraBtn">Use Camera</button>
+            <img id="cameraThumb" alt="captured" />
           </div>
           <div id="employee-input-group" style="display:none">
             <div id="employee-input-wrap">
@@ -375,6 +402,15 @@
             </div>
             <button id="downloadAllBtn" disabled>Download All (.zip)</button>
           </div>
+        </div>
+
+        <div id="cameraPreviewWrap">
+          <video id="cameraPreview" autoplay playsinline muted></video>
+          <div class="camera-row">
+            <button type="button" id="capturePhotoBtn">Capture Photo</button>
+            <button type="button" id="closeCameraBtn">Close Camera</button>
+          </div>
+          <canvas id="captureCanvas" style="display:none"></canvas>
         </div>
       </div>
 
@@ -482,6 +518,7 @@ document.getElementById("navSearchEmp").addEventListener("click", () => {
 });
 document.getElementById("navIdentify").addEventListener("click", () => {
   setActiveNav("navIdentify");
+  stopCamera();
   showPanel("panel-identify");
 });
 document.getElementById("navSearchEvent").addEventListener("click", () => {
@@ -497,6 +534,7 @@ function setActiveNav(id) {
 // --- Search mode (image / employee / event), driven by sidebar now ---
 function setSearchMode(mode) {
   searchMode = mode;
+  if (mode !== "image") stopCamera();
   imageInputGroup.style.display = mode === "image" ? "" : "none";
   employeeInputGroup.style.display = mode === "employee" ? "" : "none";
   eventInputGroup.style.display = mode === "event" ? "" : "none";
@@ -611,7 +649,57 @@ document.addEventListener("click", (e) => {
 // --- File selection ---
 fileInput.addEventListener("change", () => {
   selectedFile = fileInput.files[0] || null;
+  cameraThumb.style.display = "none";
   updateSearchBtnState();
+});
+
+// --- Camera capture (search by image) ---
+const openCameraBtn = document.getElementById("openCameraBtn");
+const capturePhotoBtn = document.getElementById("capturePhotoBtn");
+const closeCameraBtn = document.getElementById("closeCameraBtn");
+const cameraPreviewWrap = document.getElementById("cameraPreviewWrap");
+const cameraPreview = document.getElementById("cameraPreview");
+const captureCanvas = document.getElementById("captureCanvas");
+const cameraThumb = document.getElementById("cameraThumb");
+let cameraStream = null;
+
+async function openCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+  } catch (e) {
+    statusEl.textContent = "Could not access camera: " + e.message;
+    return;
+  }
+  cameraPreview.srcObject = cameraStream;
+  cameraPreviewWrap.classList.add("open");
+  openCameraBtn.style.display = "none";
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraPreview.srcObject = null;
+  cameraPreviewWrap.classList.remove("open");
+  openCameraBtn.style.display = "";
+}
+
+openCameraBtn.addEventListener("click", openCamera);
+closeCameraBtn.addEventListener("click", stopCamera);
+
+capturePhotoBtn.addEventListener("click", () => {
+  captureCanvas.width = cameraPreview.videoWidth;
+  captureCanvas.height = cameraPreview.videoHeight;
+  captureCanvas.getContext("2d").drawImage(cameraPreview, 0, 0);
+  captureCanvas.toBlob(blob => {
+    selectedFile = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+    fileInput.value = "";
+    cameraThumb.src = URL.createObjectURL(blob);
+    cameraThumb.style.display = "inline-block";
+    updateSearchBtnState();
+    stopCamera();
+  }, "image/jpeg", 0.92);
 });
 
 // --- Single search button, behavior depends on current mode ---

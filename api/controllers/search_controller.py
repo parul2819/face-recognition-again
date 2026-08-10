@@ -68,6 +68,7 @@ async def run_embedding_search(
             SELECT
                 image_id,
                 blob_path,
+                source_url,
                 bbox_x, bbox_y, bbox_w, bbox_h,
                 1 - (embedding <=> $1::vector) AS similarity,
                 ROW_NUMBER() OVER (
@@ -78,11 +79,11 @@ async def run_embedding_search(
             {where_sql}
         ),
         best_per_image AS (
-            SELECT image_id, blob_path, bbox_x, bbox_y, bbox_w, bbox_h, similarity
+            SELECT image_id, blob_path, source_url, bbox_x, bbox_y, bbox_w, bbox_h, similarity
             FROM ranked
             WHERE rn = 1 AND similarity >= ${threshold_idx}
         )
-        SELECT image_id, blob_path, bbox_x, bbox_y, bbox_w, bbox_h, similarity,
+        SELECT image_id, blob_path, source_url, bbox_x, bbox_y, bbox_w, bbox_h, similarity,
                COUNT(*) OVER () AS total_count
         FROM best_per_image
         ORDER BY similarity DESC
@@ -96,7 +97,11 @@ async def run_embedding_search(
         {
             "image_id": str(row["image_id"]),
             "blob_path": row["blob_path"],
-            "image_url": blob_path_to_url(row["blob_path"]),
+            "source_url": row["source_url"],
+            # Remotely-sourced rows (source_url set, no local blob_path) use
+            # source_url directly as the image reference; local rows keep
+            # the existing /pics-relative URL.
+            "image_url": row["source_url"] or blob_path_to_url(row["blob_path"]),
             "similarity": round(float(row["similarity"]), 3),
             "bbox": {
                 "x": row["bbox_x"],

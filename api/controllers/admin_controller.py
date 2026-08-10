@@ -434,9 +434,9 @@ async def list_test_images():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT image_id, blob_path, COUNT(*) AS face_count
+            SELECT image_id, blob_path, source_url, COUNT(*) AS face_count
             FROM images
-            GROUP BY image_id, blob_path
+            GROUP BY image_id, blob_path, source_url
             ORDER BY blob_path
             """
         )
@@ -445,7 +445,8 @@ async def list_test_images():
             {
                 "image_id": str(row["image_id"]),
                 "blob_path": row["blob_path"],
-                "image_url": blob_path_to_url(row["blob_path"]),
+                "source_url": row["source_url"],
+                "image_url": row["source_url"] or blob_path_to_url(row["blob_path"]),
                 "face_count": row["face_count"],
             }
             for row in rows
@@ -475,6 +476,11 @@ async def get_test_image_annotated(image_id: str):
         raise HTTPException(status_code=404, detail=f"No test image found with id '{image_id}'")
 
     blob_path = rows[0]["blob_path"]
+    if not blob_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Annotated view isn't available for remote-sourced images (no local file)",
+        )
     full_path = (PROJECT_ROOT / blob_path).resolve()
     if not str(full_path).startswith(str(PROJECT_ROOT)) or not full_path.exists():
         raise HTTPException(status_code=404, detail="Image file not found on disk")
@@ -509,12 +515,13 @@ async def delete_test_image(image_id: str):
 
         await conn.execute("DELETE FROM images WHERE image_id = $1", image_id)
 
-    full_path = (PROJECT_ROOT / row["blob_path"]).resolve()
-    if str(full_path).startswith(str(PROJECT_ROOT)) and full_path.exists():
-        try:
-            full_path.unlink()
-        except OSError:
-            pass
+    if row["blob_path"]:
+        full_path = (PROJECT_ROOT / row["blob_path"]).resolve()
+        if str(full_path).startswith(str(PROJECT_ROOT)) and full_path.exists():
+            try:
+                full_path.unlink()
+            except OSError:
+                pass
 
     return {"image_id": image_id, "deleted": True}
 
@@ -537,6 +544,8 @@ async def delete_all_test_images(confirm: bool = False):
         await conn.execute("DELETE FROM images")
 
     for row in rows:
+        if not row["blob_path"]:
+            continue
         full_path = (PROJECT_ROOT / row["blob_path"]).resolve()
         if str(full_path).startswith(str(PROJECT_ROOT)) and full_path.exists():
             try:

@@ -8,19 +8,7 @@ _app.prepare(ctx_id=-1)
 
 
 def _build_single_threaded_face_app() -> FaceAnalysis:
-    """
-    A second copy of the model, with each onnxruntime session capped to one
-    internal thread. Used for bulk uploads, which run several images'
-    detection concurrently (see api/controllers/admin_controller.py):
-    without the cap, each image's inference tries to use every CPU core on
-    its own, so running them "concurrently" would just have them fight over
-    the same cores instead of actually overlapping.
-
-    The onnxruntime patch is only active while this app is being built, so
-    it doesn't affect the default `_app` above (used by single-image
-    endpoints, where using every core for that one image is the right
-    choice) or anything else that creates its own sessions later.
-    """
+  
     original_init = ort.InferenceSession.__init__
 
     def capped_init(self, path_or_bytes, sess_options=None, **kwargs):

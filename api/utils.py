@@ -2,6 +2,22 @@ import cv2
 import numpy as np
 
 
+def parse_employee_id_and_name(filename_stem: str) -> tuple[str, str]:
+    """
+    Expected filename convention for reference photos: "<employee_id>_<name>.ext"
+    e.g. "E1001_virat.jpg" -> employee_id="E1001", name="virat"
+    Shared by ingestion/ingest_reference_images.py (local folder) and the
+    OneDrive reference-persons folder ingestion, so both sources agree on
+    naming.
+    """
+    if "_" not in filename_stem:
+        raise ValueError(
+            f"Filename '{filename_stem}' does not follow the '<employee_id>_<name>' convention"
+        )
+    employee_id, name = filename_stem.split("_", 1)
+    return employee_id, name
+
+
 def embedding_to_pgvector(embedding: np.ndarray) -> str:
     """Convert a numpy embedding to pgvector's text format: '[0.1,0.2,...]'"""
     return "[" + ",".join(str(float(x)) for x in embedding) + "]"

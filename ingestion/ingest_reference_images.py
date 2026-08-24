@@ -13,6 +13,8 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from core.face_utils import get_face_embeddings
 
+from api.utils import parse_employee_id_and_name
+
 load_dotenv()
 
 DB_USER = os.getenv("POSTGRES_USER", "face_recognition")
@@ -29,19 +31,6 @@ VALID_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 def embedding_to_pgvector(embedding: np.ndarray) -> str:
     """Convert a numpy embedding to the string format pgvector expects: '[0.1,0.2,...]'"""
     return "[" + ",".join(str(float(x)) for x in embedding) + "]"
-
-
-def parse_employee_id_and_name(filename_stem: str) -> tuple[str, str]:
-    """
-    Expected filename convention: "<employee_id>_<name>.jpg"
-    e.g. "E1001_virat.jpg" -> employee_id="E1001", name="virat"
-    """
-    if "_" not in filename_stem:
-        raise ValueError(
-            f"Filename '{filename_stem}' does not follow the '<employee_id>_<name>' convention"
-        )
-    employee_id, name = filename_stem.split("_", 1)
-    return employee_id, name
 
 
 async def main():

@@ -356,6 +356,57 @@
   #gallery-toolbar { display: flex; gap: 10px; }
   #galleryAnnotateBtn { background: #e5e7eb; color: #111; font-weight: 600; }
   #galleryDeleteBtn { background: #dc2626; color: white; font-weight: 600; }
+
+  /* ---------- OneDrive folder ingestion panels ---------- */
+  .onedrive-hint { font-size: 12px; color: #888; margin: -8px 0 14px; }
+  .onedrive-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .onedrive-actions button { background: #2563eb; color: white; font-weight: 600; }
+  .onedrive-actions button:disabled { background: #9ca3af; cursor: default; }
+  .refresh-btn { background: #e5e7eb !important; color: #111 !important; font-weight: 600; }
+  .onedrive-job-box { display: none; margin-top: 16px; }
+  .onedrive-job-box.open { display: block; }
+  .onedrive-progress-track {
+    background: #e5e7eb; border-radius: 6px; height: 10px; overflow: hidden; margin-bottom: 8px;
+  }
+  .onedrive-progress-fill { background: #2563eb; height: 100%; width: 0%; transition: width 0.2s ease; }
+  .onedrive-progress-fill.status-failed { background: #dc2626; }
+  .onedrive-counts { font-size: 13px; color: #444; margin-bottom: 4px; }
+  .onedrive-status-line { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .onedrive-failures-list { font-size: 12px; color: #b91c1c; max-height: 140px; overflow-y: auto; margin-top: 8px; }
+  .onedrive-failures-list div { padding: 2px 0; border-bottom: 1px solid #fee2e2; }
+
+  .onedrive-history-list { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+  .onedrive-history-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f1f3;
+    font-size: 13px;
+  }
+  .onedrive-history-row:last-child { border-bottom: none; }
+  .onedrive-history-url {
+    color: #444;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 320px;
+  }
+  .onedrive-history-meta { color: #888; font-size: 12px; flex-shrink: 0; text-align: right; }
+  .onedrive-history-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .onedrive-history-status.completed { background: #dcfce7; color: #16a34a; }
+  .onedrive-history-status.failed { background: #fee2e2; color: #dc2626; }
+  .onedrive-history-status.processing, .onedrive-history-status.pending { background: #dbeafe; color: #2563eb; }
+  .onedrive-history-empty { font-size: 13px; color: #888; padding: 8px 0; }
+  .onedrive-history-row.is-delete .onedrive-history-url { color: #b91c1c; }
 </style>
 </head>
 <body>
@@ -372,18 +423,20 @@
       </button>
       <div class="nav-group-items">
         <button class="nav-item active" id="navAdd">Add / Update Person</button>
+        <button class="nav-item" id="navAddPersonsOneDrive">Add from OneDrive</button>
         <button class="nav-item" id="navDelete">Delete Person</button>
       </div>
     </div>
 
     <div class="nav-group" id="groupTestImages">
       <button class="nav-group-toggle" id="toggleTestImages">
-        <span>Test Images</span>
+        <span>Photo Library</span>
         <span class="chevron">&#9660;</span>
       </button>
       <div class="nav-group-items">
-        <button class="nav-item" id="navTestImages">Add Test Images</button>
-        <button class="nav-item" id="navDeleteTestImages">Delete Test Images</button>
+        <button class="nav-item" id="navTestImages">Add Photos</button>
+        <button class="nav-item" id="navTestImagesOneDrive">Add from OneDrive</button>
+        <button class="nav-item" id="navDeleteTestImages">Delete Photos</button>
       </div>
     </div>
 
@@ -428,6 +481,38 @@
       </div>
     </div>
 
+    <!-- ================= ADD REFERENCE PERSONS FROM ONEDRIVE ================= -->
+    <div class="panel" id="panel-add-persons-onedrive">
+      <h2>Add reference persons from a OneDrive folder</h2>
+      <div class="card-box narrow-card">
+        <div class="field">
+          <label for="personsOneDriveUrlInput">OneDrive folder link</label>
+          <input type="text" id="personsOneDriveUrlInput" placeholder="https://...-my.sharepoint.com/..." />
+        </div>
+        <div class="onedrive-hint">
+          Every file in the folder must be named "&lt;employee_id&gt;_&lt;name&gt;.jpg" (one photo per
+          person) -- e.g. "E1005_Priya_Sharma.jpg".
+        </div>
+        <div class="onedrive-actions">
+          <button id="startPersonsOneDriveBtn">Start Uploading</button>
+          <button id="refreshPersonsOneDriveBtn" class="refresh-btn" style="display:none">Show me the update</button>
+          <button id="historyPersonsOneDriveBtn" class="refresh-btn">View Upload History</button>
+        </div>
+        <div id="personsOneDriveStatus" style="margin-top:10px"></div>
+
+        <div class="onedrive-job-box" id="personsOneDriveJobBox">
+          <div class="onedrive-progress-track">
+            <div class="onedrive-progress-fill" id="personsOneDriveProgressFill"></div>
+          </div>
+          <div class="onedrive-status-line" id="personsOneDriveStatusLine"></div>
+          <div class="onedrive-counts" id="personsOneDriveCounts"></div>
+          <div class="onedrive-failures-list" id="personsOneDriveFailuresList"></div>
+        </div>
+
+        <div class="onedrive-history-list" id="personsOneDriveHistoryList" style="display:none"></div>
+      </div>
+    </div>
+
     <!-- ================= DELETE REFERENCE PERSON ================= -->
     <div class="panel" id="panel-delete">
       <h2>Delete a reference person</h2>
@@ -447,9 +532,9 @@
       </div>
     </div>
 
-    <!-- ================= ADD TEST IMAGES ================= -->
+    <!-- ================= ADD PHOTOS TO LIBRARY ================= -->
     <div class="panel" id="panel-test-images">
-      <h2>Add test images</h2>
+      <h2>Add photos to the library</h2>
       <div class="card-box narrow-card">
         <div class="field">
           <label for="testImagesInput">Photos (you can select multiple)</label>
@@ -459,7 +544,7 @@
           <label for="eventNameInput">Event name (optional)</label>
           <input type="text" id="eventNameInput" placeholder="e.g. Annual Day 2026" />
         </div>
-        <button id="addTestImagesBtn" disabled>Add test images</button>
+        <button id="addTestImagesBtn" disabled>Upload Photos</button>
         <div id="addTestImagesStatus"></div>
 
         <div id="duplicateWarningBox">
@@ -473,9 +558,46 @@
       </div>
     </div>
 
-    <!-- ================= DELETE TEST IMAGES ================= -->
+    <!-- ================= ADD PHOTOS FROM ONEDRIVE ================= -->
+    <div class="panel" id="panel-test-images-onedrive">
+      <h2>Add photos from a OneDrive folder</h2>
+      <div class="card-box narrow-card">
+        <div class="field">
+          <label for="testImagesOneDriveUrlInput">OneDrive folder link</label>
+          <input type="text" id="testImagesOneDriveUrlInput" placeholder="https://...-my.sharepoint.com/..." />
+        </div>
+        <div class="field">
+          <label for="oneDriveEventNameInput">Event name (optional)</label>
+          <input type="text" id="oneDriveEventNameInput" placeholder="e.g. Annual Day 2026" />
+        </div>
+        <div class="onedrive-hint">
+          Every image directly inside the folder is added (subfolders are not scanned). Filenames
+          already in the library are skipped automatically -- safe to re-run on the same folder
+          later to pick up only newly-added photos.
+        </div>
+        <div class="onedrive-actions">
+          <button id="startTestImagesOneDriveBtn">Start Uploading</button>
+          <button id="refreshTestImagesOneDriveBtn" class="refresh-btn" style="display:none">Show me the update</button>
+          <button id="historyTestImagesOneDriveBtn" class="refresh-btn">View Upload History</button>
+        </div>
+        <div id="testImagesOneDriveStatus" style="margin-top:10px"></div>
+
+        <div class="onedrive-job-box" id="testImagesOneDriveJobBox">
+          <div class="onedrive-progress-track">
+            <div class="onedrive-progress-fill" id="testImagesOneDriveProgressFill"></div>
+          </div>
+          <div class="onedrive-status-line" id="testImagesOneDriveStatusLine"></div>
+          <div class="onedrive-counts" id="testImagesOneDriveCounts"></div>
+          <div class="onedrive-failures-list" id="testImagesOneDriveFailuresList"></div>
+        </div>
+
+        <div class="onedrive-history-list" id="testImagesOneDriveHistoryList" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- ================= DELETE PHOTOS ================= -->
     <div class="panel" id="panel-delete-images">
-      <h2>Delete test images</h2>
+      <h2>Delete photos</h2>
 
       <div class="list-toolbar">
         <div class="view-toggle" id="testImagesViewToggle">
@@ -487,7 +609,7 @@
 
       <div class="card-box">
         <div id="imagesGrid"></div>
-        <div id="testImagesDeleteEmpty" style="display:none">No test images yet.</div>
+        <div id="testImagesDeleteEmpty" style="display:none">No photos yet.</div>
         <div id="testImagesDeleteStatus"></div>
       </div>
     </div>
@@ -509,12 +631,12 @@
   </div>
 </div>
 
-<!-- Delete test image confirmation popup -->
+<!-- Delete photo confirmation popup -->
 <div id="confirm-image-overlay">
   <div id="confirm-image-box">
     <img id="confirmImagePhoto" src="" alt="" />
     <div class="sub" id="confirmImageInfo"></div>
-    <p>Are you sure you want to delete this test image? This cannot be undone.</p>
+    <p>Are you sure you want to delete this photo? This cannot be undone.</p>
     <div id="confirm-image-actions">
       <button id="confirmImageCancelBtn">Cancel</button>
       <button id="confirmImageDeleteBtn">Delete</button>
@@ -522,7 +644,7 @@
   </div>
 </div>
 
-<!-- Delete-all confirmation popup (shared between persons and test images) -->
+<!-- Delete-all confirmation popup (shared between persons and photos) -->
 <div id="confirm-all-overlay">
   <div id="confirm-all-box">
     <h3 id="confirmAllTitle"></h3>
@@ -549,7 +671,7 @@
 </div>
 
 <script>
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
 
 // --- Collapsible sidebar groups ---
 document.getElementById("toggleReference").addEventListener("click", () => {
@@ -564,6 +686,10 @@ document.getElementById("navAdd").addEventListener("click", () => {
   setActiveNav("navAdd");
   showPanel("panel-add");
 });
+document.getElementById("navAddPersonsOneDrive").addEventListener("click", () => {
+  setActiveNav("navAddPersonsOneDrive");
+  showPanel("panel-add-persons-onedrive");
+});
 document.getElementById("navDelete").addEventListener("click", () => {
   setActiveNav("navDelete");
   showPanel("panel-delete");
@@ -572,6 +698,10 @@ document.getElementById("navDelete").addEventListener("click", () => {
 document.getElementById("navTestImages").addEventListener("click", () => {
   setActiveNav("navTestImages");
   showPanel("panel-test-images");
+});
+document.getElementById("navTestImagesOneDrive").addEventListener("click", () => {
+  setActiveNav("navTestImagesOneDrive");
+  showPanel("panel-test-images-onedrive");
 });
 document.getElementById("navDeleteTestImages").addEventListener("click", () => {
   setActiveNav("navDeleteTestImages");
@@ -590,7 +720,7 @@ function showPanel(panelId) {
 // ============================================================
 // Gallery viewer (shared): full-screen, prev/next, per-image
 // annotate toggle, and a delete button -- used by both the
-// "Delete Person" list and the "Delete Test Images" grid.
+// "Delete Person" list and the "Delete Photos" grid.
 // ============================================================
 const galleryOverlay = document.getElementById("gallery-overlay");
 const galleryImg = document.getElementById("galleryImg");
@@ -967,7 +1097,7 @@ confirmDeleteBtn.addEventListener("click", async () => {
   }
 });
 
-// --- Add test images (with filename-duplicate check before upload) ---
+// --- Add photos to library (with filename-duplicate check before upload) ---
 const testImagesInput = document.getElementById("testImagesInput");
 const eventNameInput = document.getElementById("eventNameInput");
 const addTestImagesBtn = document.getElementById("addTestImagesBtn");
@@ -1148,7 +1278,7 @@ async function pollTestImagesJob(jobId) {
   }
 }
 
-// --- Delete test images: grid + custom confirmation popup ---
+// --- Delete photos: grid + custom confirmation popup ---
 const imagesGridEl = document.getElementById("imagesGrid");
 const testImagesDeleteEmptyEl = document.getElementById("testImagesDeleteEmpty");
 const testImagesDeleteStatusEl = document.getElementById("testImagesDeleteStatus");
@@ -1197,7 +1327,7 @@ async function loadTestImagesList() {
       renderGallery();
     }
   } catch (e) {
-    testImagesDeleteStatusEl.textContent = "Could not load test images: " + e.message;
+    testImagesDeleteStatusEl.textContent = "Could not load photos: " + e.message;
     testImagesDeleteStatusEl.className = "status-error";
   }
 }
@@ -1214,7 +1344,7 @@ function renderTestImagesGrid(images) {
 
     const img = document.createElement("img");
     img.src = url;
-    img.alt = "test image";
+    img.alt = "photo";
     img.addEventListener("click", () => openGallery("testImages", index));
 
     const footer = document.createElement("div");
@@ -1284,7 +1414,7 @@ confirmImageDeleteBtn.addEventListener("click", async () => {
   }
 });
 
-// --- Delete All (shared confirmation modal for persons + test images) ---
+// --- Delete All (shared confirmation modal for persons + photos) ---
 const confirmAllOverlay = document.getElementById("confirm-all-overlay");
 const confirmAllTitle = document.getElementById("confirmAllTitle");
 const confirmAllText = document.getElementById("confirmAllText");
@@ -1298,16 +1428,16 @@ deleteAllPersonsBtn.addEventListener("click", () => {
   confirmAllTitle.textContent = "Delete all reference persons?";
   confirmAllText.textContent =
     `This permanently removes all ${lastPersonsData.length} reference person(s). ` +
-    `Their photos already ingested into the test set are not deleted, but will show as "Unknown" going forward. This cannot be undone.`;
+    `Their photos already ingested into the library are not deleted, but will show as "Unknown" going forward. This cannot be undone.`;
   confirmAllOverlay.classList.add("open");
 });
 
 deleteAllTestImagesBtn.addEventListener("click", () => {
   if (lastTestImagesData.length === 0) return;
   pendingDeleteAllType = "testImages";
-  confirmAllTitle.textContent = "Delete all test images?";
+  confirmAllTitle.textContent = "Delete all photos?";
   confirmAllText.textContent =
-    `This permanently removes all ${lastTestImagesData.length} test image(s) and their files. This cannot be undone.`;
+    `This permanently removes all ${lastTestImagesData.length} photo(s) and their files. This cannot be undone.`;
   confirmAllOverlay.classList.add("open");
 });
 
@@ -1353,6 +1483,221 @@ confirmAllDeleteBtn.addEventListener("click", async () => {
     statusEl.textContent = "Request failed: " + e.message;
     statusEl.className = "status-error";
   }
+});
+
+// ============================================================
+// OneDrive folder ingestion (reference persons + photo library).
+// No automatic polling -- "Show me the update" is a manual, on-click GET,
+// per docs/folder-batch-ingestion.md. Both panels share this one setup
+// function since the flow (start -> job_id -> manual refresh -> progress
+// bar + failures list) is identical for either target.
+// ============================================================
+const STATUS_LABELS = {
+  pending: "Pending...",
+  processing: "Processing...",
+  completed: "Completed",
+  failed: "Failed",
+};
+
+function setupOneDriveJobPanel(config) {
+  let currentJobId = null;
+
+  async function refreshJob() {
+    if (!currentJobId) return;
+    config.refreshBtn.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/ingestion_jobs/${encodeURIComponent(currentJobId)}`);
+      const data = await res.json();
+      config.refreshBtn.disabled = false;
+
+      if (!res.ok) {
+        config.statusEl.textContent = "Error: " + (data.detail || res.statusText);
+        config.statusEl.className = "status-error";
+        return;
+      }
+
+      renderJob(data);
+      if (data.failed_images > 0) {
+        await loadFailures();
+      }
+    } catch (e) {
+      config.refreshBtn.disabled = false;
+      config.statusEl.textContent = "Request failed: " + e.message;
+      config.statusEl.className = "status-error";
+    }
+  }
+
+  function renderJob(data) {
+    config.jobBox.classList.add("open");
+    const total = data.total_images || 0;
+    const done = data.processed_images + data.failed_images;
+    const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    config.progressFill.style.width = pct + "%";
+    config.progressFill.classList.toggle("status-failed", data.status === "failed");
+
+    const statusLabel = STATUS_LABELS[data.status] || data.status;
+    config.statusLine.textContent = statusLabel + (data.error_message ? ": " + data.error_message : "");
+    config.counts.textContent =
+      `${data.processed_images} added, ${data.failed_images} failed, out of ${total} total`;
+  }
+
+  async function loadFailures() {
+    try {
+      const res = await fetch(`${API_BASE}/admin/ingestion_jobs/${encodeURIComponent(currentJobId)}/failures`);
+      const data = await res.json();
+      if (!res.ok) return;
+      config.failuresList.innerHTML = "";
+      for (const f of data.failures) {
+        const div = document.createElement("div");
+        div.textContent = `${f.filename}: ${f.error_message}`;
+        config.failuresList.appendChild(div);
+      }
+    } catch (e) {
+      // Best-effort -- the failures list is a nice-to-have, don't block
+      // the main progress display over it.
+    }
+  }
+
+  config.startBtn.addEventListener("click", async () => {
+    const folderUrl = config.urlInput.value.trim();
+    if (!folderUrl) {
+      config.statusEl.textContent = "Enter a OneDrive folder link.";
+      config.statusEl.className = "status-error";
+      return;
+    }
+
+    config.startBtn.disabled = true;
+    config.statusEl.textContent = "Starting...";
+    config.statusEl.className = "";
+    config.jobBox.classList.remove("open");
+    config.refreshBtn.style.display = "none";
+    config.failuresList.innerHTML = "";
+
+    const body = Object.assign({ folder_url: folderUrl }, config.extraFields ? config.extraFields() : {});
+
+    try {
+      const res = await fetch(`${API_BASE}${config.startEndpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      config.startBtn.disabled = false;
+
+      if (!res.ok) {
+        config.statusEl.textContent = "Error: " + (data.detail || res.statusText);
+        config.statusEl.className = "status-error";
+        return;
+      }
+
+      currentJobId = data.job_id;
+      config.statusEl.textContent = "Started -- processing in the background.";
+      config.statusEl.className = "status-success";
+      config.refreshBtn.style.display = "";
+      await refreshJob();
+    } catch (e) {
+      config.startBtn.disabled = false;
+      config.statusEl.textContent = "Request failed: " + e.message;
+      config.statusEl.className = "status-error";
+    }
+  });
+
+  config.refreshBtn.addEventListener("click", refreshJob);
+
+  // --- Upload history: every past job for this target, newest first ---
+  async function loadHistory() {
+    const isOpen = config.historyList.style.display !== "none";
+    if (isOpen) {
+      config.historyList.style.display = "none";
+      return;
+    }
+
+    config.historyList.style.display = "block";
+    config.historyList.innerHTML = '<div class="onedrive-history-empty">Loading...</div>';
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/ingestion_jobs?target=${encodeURIComponent(config.target)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        config.historyList.innerHTML =
+          `<div class="onedrive-history-empty">Error: ${data.detail || res.statusText}</div>`;
+        return;
+      }
+
+      if (data.jobs.length === 0) {
+        config.historyList.innerHTML = '<div class="onedrive-history-empty">No uploads yet.</div>';
+        return;
+      }
+
+      config.historyList.innerHTML = "";
+      for (const job of data.jobs) {
+        const row = document.createElement("div");
+        row.className = "onedrive-history-row";
+        if (/^delete/i.test(job.folder_url)) {
+          row.classList.add("is-delete");
+        }
+
+        const urlSpan = document.createElement("span");
+        urlSpan.className = "onedrive-history-url";
+        urlSpan.textContent = job.folder_url;
+        urlSpan.title = job.folder_url;
+
+        const metaSpan = document.createElement("span");
+        metaSpan.className = "onedrive-history-meta";
+        const when = job.created_at ? new Date(job.created_at).toLocaleString() : "";
+        const counts = `${job.processed_images} added, ${job.failed_images} failed / ${job.total_images} total`;
+        metaSpan.innerHTML =
+          `${when} &middot; ${counts}` +
+          `<span class="onedrive-history-status ${job.status}">${job.status}</span>`;
+
+        row.appendChild(urlSpan);
+        row.appendChild(metaSpan);
+        config.historyList.appendChild(row);
+      }
+    } catch (e) {
+      config.historyList.innerHTML =
+        `<div class="onedrive-history-empty">Request failed: ${e.message}</div>`;
+    }
+  }
+
+  config.historyBtn.addEventListener("click", loadHistory);
+}
+
+setupOneDriveJobPanel({
+  urlInput: document.getElementById("personsOneDriveUrlInput"),
+  startBtn: document.getElementById("startPersonsOneDriveBtn"),
+  refreshBtn: document.getElementById("refreshPersonsOneDriveBtn"),
+  historyBtn: document.getElementById("historyPersonsOneDriveBtn"),
+  historyList: document.getElementById("personsOneDriveHistoryList"),
+  target: "reference_persons",
+  statusEl: document.getElementById("personsOneDriveStatus"),
+  jobBox: document.getElementById("personsOneDriveJobBox"),
+  progressFill: document.getElementById("personsOneDriveProgressFill"),
+  statusLine: document.getElementById("personsOneDriveStatusLine"),
+  counts: document.getElementById("personsOneDriveCounts"),
+  failuresList: document.getElementById("personsOneDriveFailuresList"),
+  startEndpoint: "/admin/persons/onedrive",
+});
+
+setupOneDriveJobPanel({
+  urlInput: document.getElementById("testImagesOneDriveUrlInput"),
+  startBtn: document.getElementById("startTestImagesOneDriveBtn"),
+  refreshBtn: document.getElementById("refreshTestImagesOneDriveBtn"),
+  historyBtn: document.getElementById("historyTestImagesOneDriveBtn"),
+  historyList: document.getElementById("testImagesOneDriveHistoryList"),
+  target: "test_images",
+  statusEl: document.getElementById("testImagesOneDriveStatus"),
+  jobBox: document.getElementById("testImagesOneDriveJobBox"),
+  progressFill: document.getElementById("testImagesOneDriveProgressFill"),
+  statusLine: document.getElementById("testImagesOneDriveStatusLine"),
+  counts: document.getElementById("testImagesOneDriveCounts"),
+  failuresList: document.getElementById("testImagesOneDriveFailuresList"),
+  startEndpoint: "/admin/test_images/onedrive",
+  extraFields: () => {
+    const eventName = document.getElementById("oneDriveEventNameInput").value.trim();
+    return eventName ? { event_name: eventName } : {};
+  },
 });
 </script>
 

@@ -67,3 +67,37 @@ CREATE INDEX IF NOT EXISTS images_uploaded_at_idx
 
 CREATE INDEX IF NOT EXISTS images_event_name_idx
     ON images (event_name);
+
+-- OneDrive folder ingestion jobs (see docs/folder-batch-ingestion.md).
+-- One row per "pull this folder" run, for either test images or reference
+-- persons. Progress is written in batches (every ONEDRIVE_PROGRESS_BATCH_SIZE
+-- successes), not per-image, to avoid contended writes during a large
+-- concurrent run. DB-backed (unlike api/jobs.py's in-memory tracker used for
+-- manual bulk uploads) so progress survives a slow multi-hundred-image run.
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+    job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    target TEXT NOT NULL CHECK (target IN ('test_images', 'reference_persons')),
+    folder_url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    total_images INT NOT NULL DEFAULT 0,
+    processed_images INT NOT NULL DEFAULT 0,  -- successes only
+    failed_images INT NOT NULL DEFAULT 0,
+    error_message TEXT,  -- set if the job itself fails outright (e.g. can't list the folder)
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    completed_at TIMESTAMP
+);
+
+-- One row per failed image, written immediately (not batched -- failures
+-- are expected to be rare, so this stays small).
+CREATE TABLE IF NOT EXISTS ingestion_job_failures (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID NOT NULL REFERENCES ingestion_jobs(job_id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    error_message TEXT,
+    failed_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ingestion_job_failures_job_id_idx
+    ON ingestion_job_failures (job_id);

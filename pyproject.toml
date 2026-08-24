@@ -17,9 +17,12 @@ dependencies = [
     "opencv-python (>=5.0.0.93,<6.0.0.0)",
     "python-dotenv (>=1.0.0,<2.0.0)",
     "dotenv (>=0.9.9,<0.10.0)",
-    "requests (>=2.34.0,<3.0.0)"
+    "requests (>=2.34.0,<3.0.0)",
+    "msal (>=1.37.0,<2.0.0)"
 ]
 
+[tool.poetry]
+package-mode = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -20,3 +20,19 @@ UI_DIR = PROJECT_ROOT / "ui"
 
 REFERENCE_IMAGES_DIR = PROJECT_ROOT / os.getenv("REFERENCE_IMAGES_DIR", "pics/reference pics")
 IMAGES_DIR = PROJECT_ROOT / os.getenv("IMAGES_DIR", "pics")
+
+# Azure AD app registration for OneDrive folder ingestion (device-code flow,
+# no client secret -- see core/onedrive_auth.py and scripts/onedrive_auth_setup.py).
+MS_CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
+MS_TENANT_ID = os.getenv("MS_TENANT_ID", "")
+ONEDRIVE_TOKEN_CACHE_PATH = PROJECT_ROOT / os.getenv("ONEDRIVE_TOKEN_CACHE_PATH", ".onedrive_token_cache.json")
+
+# How many photos a folder-based OneDrive ingestion job processes at once.
+# Same reasoning as BULK_UPLOAD_CONCURRENCY in admin_controller.py.
+ONEDRIVE_INGEST_CONCURRENCY = int(os.getenv("ONEDRIVE_INGEST_CONCURRENCY", "4"))
+
+# Batched-progress cadence for OneDrive folder ingestion jobs (see
+# docs/folder-batch-ingestion.md) -- the ingestion_jobs row is only updated
+# once every this many successfully processed images, to avoid contended
+# writes during a large concurrent run.
+ONEDRIVE_PROGRESS_BATCH_SIZE = 20

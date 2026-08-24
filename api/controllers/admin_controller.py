@@ -9,7 +9,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -19,6 +19,7 @@ from core.onedrive import list_folder_images
 from core.remote_image import download_image
 
 from api import ingestion_jobs
+from api.auth import verify_admin_credentials
 from api.config import (
     IMAGES_DIR,
     ONEDRIVE_INGEST_CONCURRENCY,
@@ -35,7 +36,10 @@ from api.utils import (
     parse_employee_id_and_name,
 )
 
-router = APIRouter()
+# Every route on this router requires HTTP Basic Auth (see api/auth.py) --
+# applied once here rather than per-route so nothing new added to this
+# file can accidentally be left unprotected.
+router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
 
 
 class PhotoDecodeError(ValueError):

@@ -36,3 +36,9 @@ ONEDRIVE_INGEST_CONCURRENCY = int(os.getenv("ONEDRIVE_INGEST_CONCURRENCY", "4"))
 # once every this many successfully processed images, to avoid contended
 # writes during a large concurrent run.
 ONEDRIVE_PROGRESS_BATCH_SIZE = 20
+
+# Admin panel credentials (HTTP Basic Auth -- see api/auth.py). MUST be set
+# in .env for any real deployment; these fallbacks exist only so local dev
+# doesn't hard-fail if .env is missing them, and are intentionally weak.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")

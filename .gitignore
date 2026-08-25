@@ -40,7 +40,8 @@ htmlcov/
 Thumbs.db
 
 # --- Project data (sensitive: photos of real people) ---
-pics/
+pics/*
+!pics/.gitkeep
 
 # --- Database ---
 *.sqlite3

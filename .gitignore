@@ -48,3 +48,6 @@ pgdata/
 
 # --- Claude Code local settings ---
 .claude/settings.local.json
+
+# --- Personal working notes (not for the shared repo) ---
+docs/context-summary-for-new-chat.md

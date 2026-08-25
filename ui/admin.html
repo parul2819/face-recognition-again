@@ -85,6 +85,20 @@
     font-weight: 600;
     padding: 8px 12px;
   }
+  #logoutBtn {
+    display: block;
+    width: 100%;
+    font-size: 14px;
+    color: #dc2626;
+    background: none;
+    border: none;
+    text-align: left;
+    font-weight: 600;
+    padding: 8px 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  #logoutBtn:hover { text-decoration: underline; }
 
   /* ---------- Main content ---------- */
   #main-content { flex: 1; padding: 24px 32px; }
@@ -281,24 +295,24 @@
   #confirm-box h3, #confirm-image-box h3 { font-size: 16px; margin: 0 0 2px; }
   #confirm-box .emp-id, #confirm-image-box .sub { font-size: 13px; color: #888; margin-bottom: 14px; }
   #confirm-box p, #confirm-image-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
-  #confirm-actions, #confirm-image-actions, #confirm-all-actions { display: flex; gap: 10px; justify-content: center; }
-  #confirmCancelBtn, #confirmImageCancelBtn, #confirmAllCancelBtn { background: #e5e7eb; color: #111; }
-  #confirmDeleteBtn, #confirmImageDeleteBtn, #confirmAllDeleteBtn { background: #dc2626; color: white; }
+  #confirm-actions, #confirm-image-actions, #confirm-all-actions, #confirm-logout-actions { display: flex; gap: 10px; justify-content: center; }
+  #confirmCancelBtn, #confirmImageCancelBtn, #confirmAllCancelBtn, #confirmLogoutCancelBtn { background: #e5e7eb; color: #111; }
+  #confirmDeleteBtn, #confirmImageDeleteBtn, #confirmAllDeleteBtn, #confirmLogoutBtn { background: #dc2626; color: white; }
 
-  #confirm-all-overlay {
+  #confirm-all-overlay, #confirm-logout-overlay {
     display: none;
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 1300;
     align-items: center; justify-content: center;
   }
-  #confirm-all-overlay.open { display: flex; }
-  #confirm-all-box {
+  #confirm-all-overlay.open, #confirm-logout-overlay.open { display: flex; }
+  #confirm-all-box, #confirm-logout-box {
     background: white; border-radius: 10px; padding: 22px; width: 340px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2); text-align: center;
   }
-  #confirm-all-box h3 { font-size: 16px; margin: 0 0 10px; }
-  #confirm-all-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
+  #confirm-all-box h3, #confirm-logout-box h3 { font-size: 16px; margin: 0 0 10px; }
+  #confirm-all-box p, #confirm-logout-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
 
   /* ---------- Gallery viewer: full-screen, with prev/next/annotate/delete ---------- */
   #gallery-overlay {
@@ -441,6 +455,7 @@
     </div>
 
     <div id="sidebar-footer">
+      <button id="logoutBtn" type="button">&#10148; Log out</button>
       <a id="backLink" href="/">&larr; Back to search</a>
     </div>
   </div>
@@ -656,6 +671,18 @@
   </div>
 </div>
 
+<!-- Logout confirmation popup -->
+<div id="confirm-logout-overlay">
+  <div id="confirm-logout-box">
+    <h3>Log out of admin?</h3>
+    <p>Are you sure you want to log out?</p>
+    <div id="confirm-logout-actions">
+      <button id="confirmLogoutCancelBtn">Cancel</button>
+      <button id="confirmLogoutBtn">Log out</button>
+    </div>
+  </div>
+</div>
+
 <!-- Gallery viewer: full-screen with prev/next, per-image annotate toggle, delete -->
 <div id="gallery-overlay">
   <button class="gallery-nav-btn" id="galleryPrevBtn">&#8592;</button>
@@ -672,6 +699,42 @@
 
 <script>
 const API_BASE = "http://127.0.0.1:8001";
+
+// --- Logout ---
+// HTTP Basic Auth has no real server-side session to end -- the browser just
+// caches the credentials you typed once and keeps resending them. This is
+// the standard best-effort trick: send a request with deliberately wrong
+// credentials so the browser overwrites its cached (valid) ones for this
+// origin/realm. Most browsers then forget the old login and re-prompt on the
+// next admin request. It's not 100% guaranteed on every browser, but it's
+// the closest thing to a "logout" Basic Auth supports.
+const confirmLogoutOverlay = document.getElementById("confirm-logout-overlay");
+const confirmLogoutCancelBtn = document.getElementById("confirmLogoutCancelBtn");
+const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  confirmLogoutOverlay.classList.add("open");
+});
+
+function closeConfirmLogoutModal() {
+  confirmLogoutOverlay.classList.remove("open");
+}
+confirmLogoutCancelBtn.addEventListener("click", closeConfirmLogoutModal);
+confirmLogoutOverlay.addEventListener("click", (e) => { if (e.target === confirmLogoutOverlay) closeConfirmLogoutModal(); });
+
+confirmLogoutBtn.addEventListener("click", async () => {
+  confirmLogoutBtn.disabled = true;
+  confirmLogoutBtn.textContent = "Logging out...";
+  try {
+    await fetch(`${API_BASE}/admin.html`, {
+      headers: { Authorization: "Basic " + btoa("logout:logout") },
+      cache: "no-store",
+    });
+  } catch (e) {
+    // Ignore -- we navigate away regardless.
+  }
+  window.location.href = "/";
+});
 
 // --- Collapsible sidebar groups ---
 document.getElementById("toggleReference").addEventListener("click", () => {

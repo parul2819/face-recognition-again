@@ -32,16 +32,36 @@ async def create_job(pool: asyncpg.Pool, target: JobTarget, folder_url: str) -> 
     return str(job_id)
 
 
-async def mark_processing(pool: asyncpg.Pool, job_id: str, total_images: int) -> None:
+async def mark_processing(
+    pool: asyncpg.Pool, job_id: str, total_images: int, skipped_images: int = 0
+) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE ingestion_jobs
-            SET status = 'processing', total_images = $2, updated_at = now()
+            SET status = 'processing', total_images = $2, skipped_images = $3, updated_at = now()
             WHERE job_id = $1
             """,
             job_id,
             total_images,
+            skipped_images,
+        )
+
+
+async def set_folder_name(pool: asyncpg.Pool, job_id: str, folder_name: str | None) -> None:
+    """Best-effort: records the OneDrive folder's own display name once
+    resolved, for the upload-history table. Called separately from
+    create_job because the name is only known after an early Graph API call
+    the background job makes -- a failure to resolve it just leaves the
+    column null and the UI falls back to the share URL, it doesn't fail the
+    job."""
+    if not folder_name:
+        return
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE ingestion_jobs SET folder_name = $2 WHERE job_id = $1",
+            job_id,
+            folder_name,
         )
 
 
@@ -60,15 +80,20 @@ async def mark_failed_outright(pool: asyncpg.Pool, job_id: str, error_message: s
         )
 
 
-async def mark_completed(pool: asyncpg.Pool, job_id: str) -> None:
+async def mark_completed(pool: asyncpg.Pool, job_id: str, note: str | None = None) -> None:
+    """note reuses the error_message column for a non-error, informational
+    remark on an otherwise-successful job -- e.g. "every image in this
+    folder was already in the library." The admin UI shows it next to the
+    status regardless of pass/fail, so it doubles as a heads-up here."""
     async with pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE ingestion_jobs
-            SET status = 'completed', completed_at = now(), updated_at = now()
+            SET status = 'completed', error_message = $2, completed_at = now(), updated_at = now()
             WHERE job_id = $1
             """,
             job_id,
+            note,
         )
 
 
@@ -141,8 +166,8 @@ async def list_jobs(pool: asyncpg.Pool, target: JobTarget, limit: int = 20) -> l
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT job_id, target, folder_url, status, total_images,
-                   processed_images, failed_images, error_message,
+            SELECT job_id, target, folder_url, folder_name, status, total_images,
+                   processed_images, failed_images, skipped_images, error_message,
                    created_at, updated_at, completed_at
             FROM ingestion_jobs
             WHERE target = $1
@@ -159,8 +184,8 @@ async def get_job(pool: asyncpg.Pool, job_id: str) -> dict | None:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT job_id, target, folder_url, status, total_images,
-                   processed_images, failed_images, error_message,
+            SELECT job_id, target, folder_url, folder_name, status, total_images,
+                   processed_images, failed_images, skipped_images, error_message,
                    created_at, updated_at, completed_at
             FROM ingestion_jobs
             WHERE job_id = $1

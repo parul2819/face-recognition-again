@@ -41,7 +41,9 @@ app.include_router(download_controller.router)
 # mount below, which has no way to attach a dependency to just one file.
 @app.get("/admin.html", dependencies=[Depends(verify_admin_credentials)])
 async def admin_page():
-    return FileResponse(str(UI_DIR / "admin.html"))
+    # no-store: browsers were caching this page across deploys, silently
+    # hiding admin UI fixes/updates until a hard refresh.
+    return FileResponse(str(UI_DIR / "admin.html"), headers={"Cache-Control": "no-store"})
 
 
 # Serve photo files and the UI (must stay after the routers/admin.html

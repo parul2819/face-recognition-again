@@ -15,11 +15,11 @@ from pydantic import BaseModel
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from core.face_utils import get_face_embeddings_from_array, get_face_embeddings_from_array_bulk
-from core.onedrive import list_folder_images
+from core.onedrive import get_folder_name, list_folder_images
 from core.remote_image import download_image
 
 from api import ingestion_jobs
-from api.auth import verify_admin_credentials
+from api.auth import rotate_realm, verify_admin_credentials
 from api.config import (
     IMAGES_DIR,
     ONEDRIVE_INGEST_CONCURRENCY,
@@ -85,6 +85,18 @@ async def _log_completed_action(target: str, label: str, count: int) -> None:
         await progress.record_success()
     await progress.flush()
     await ingestion_jobs.mark_completed(pool, job_id)
+
+
+@router.post("/admin/logout")
+async def logout():
+    """
+    Rotates the Basic Auth realm (see rotate_realm() in api/auth.py) so
+    every browser's cached admin credentials stop matching and it has to
+    prompt for a fresh login on its next admin request. The closest thing
+    to a real logout that Basic Auth supports.
+    """
+    rotate_realm()
+    return {"status": "logged out"}
 
 
 @router.get("/admin/stats")
@@ -364,6 +376,16 @@ async def _run_persons_onedrive_job(job_id: str, folder_url: str) -> None:
         return
 
     await ingestion_jobs.mark_processing(pool, job_id, len(images))
+
+    # Best-effort: record the folder's own display name for the "View
+    # Upload History" table, which otherwise only has the raw (long,
+    # unreadable) share URL to show. A failure here doesn't affect the job.
+    try:
+        folder_name = await asyncio.to_thread(get_folder_name, folder_url)
+        await ingestion_jobs.set_folder_name(pool, job_id, folder_name)
+    except Exception:
+        pass
+
     progress = ingestion_jobs.BatchedProgressWriter(pool, job_id)
     semaphore = asyncio.Semaphore(ONEDRIVE_INGEST_CONCURRENCY)
 
@@ -696,13 +718,21 @@ async def _run_test_images_onedrive_job(job_id: str, folder_url: str, event_name
     the library (same intent as check_filenames_for_duplicates, just
     automatic since there's no admin choosing which dupes to keep here),
     then processes the rest with the same bounded-concurrency pattern as
-    the direct-upload job."""
+    the direct-upload job.
+
+    event_name is None when the admin left that field blank -- in that case
+    every photo is tagged with the OneDrive folder's own name instead, so
+    the batch still ends up grouped under something meaningful."""
     pool = get_pool()
     try:
         images = await asyncio.to_thread(list_folder_images, folder_url)
+        if event_name is None:
+            event_name = await asyncio.to_thread(get_folder_name, folder_url) or None
     except Exception as e:
         await ingestion_jobs.mark_failed_outright(pool, job_id, str(e))
         return
+
+    found_count = len(images)
 
     async with pool.acquire() as conn:
         existing = await conn.fetch(
@@ -711,9 +741,20 @@ async def _run_test_images_onedrive_job(job_id: str, folder_url: str, event_name
         )
     already_ingested = {row["original_filename"] for row in existing}
     images = [item for item in images if item["name"] not in already_ingested]
+    skipped_count = found_count - len(images)
+
+    # Best-effort: record the folder's own display name for the "View
+    # Upload History" table (reuses the name already resolved above for
+    # event_name when the admin left that field blank, to avoid a second
+    # Graph API call).
+    try:
+        folder_name = event_name or await asyncio.to_thread(get_folder_name, folder_url)
+        await ingestion_jobs.set_folder_name(pool, job_id, folder_name)
+    except Exception:
+        pass
 
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    await ingestion_jobs.mark_processing(pool, job_id, len(images))
+    await ingestion_jobs.mark_processing(pool, job_id, len(images), skipped_images=skipped_count)
     progress = ingestion_jobs.BatchedProgressWriter(pool, job_id)
     semaphore = asyncio.Semaphore(ONEDRIVE_INGEST_CONCURRENCY)
 
@@ -725,7 +766,21 @@ async def _run_test_images_onedrive_job(job_id: str, folder_url: str, event_name
 
     await asyncio.gather(*(_bounded(item) for item in images))
     await progress.flush()
-    await ingestion_jobs.mark_completed(pool, job_id)
+
+    # len(images) == 0 leaves the usual "0 added, 0 failed, out of 0 total"
+    # counts with nothing explaining why -- spell out the two ways that
+    # happens so it doesn't read as a silent no-op.
+    note = None
+    if len(images) == 0:
+        note = (
+            f"All {found_count} image(s) in this folder are already in the library -- nothing new to add."
+            if found_count > 0
+            else "No images found in this folder."
+        )
+    elif skipped_count > 0:
+        note = f"Skipped {skipped_count} image(s) already in the library."
+
+    await ingestion_jobs.mark_completed(pool, job_id, note=note)
 
 
 @router.post("/admin/test_images/onedrive")

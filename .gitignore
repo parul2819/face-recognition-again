@@ -39,6 +39,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# --- Runtime logs ---
+*.log
+
 # --- Project data (sensitive: photos of real people) ---
 pics/*
 !pics/.gitkeep

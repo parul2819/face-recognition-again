@@ -4,12 +4,13 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from core.face_utils import get_face_embeddings_from_array
 
+from api.auth import verify_admin_credentials
 from api.config import SEARCH_THRESHOLD
 from api.db import get_pool
 from api.utils import embedding_to_pgvector
@@ -17,7 +18,7 @@ from api.utils import embedding_to_pgvector
 router = APIRouter()
 
 
-@router.post("/identify")
+@router.post("/identify", dependencies=[Depends(verify_admin_credentials)])
 async def identify_photo(file: UploadFile = File(...)):
     """
     Upload any photo (single or group). Detects every face, matches each

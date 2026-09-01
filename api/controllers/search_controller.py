@@ -4,13 +4,14 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 # Add project root to sys.path so "from core.face_utils import ..." works
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from core.face_utils import get_face_embeddings_from_array
 
+from api.auth import verify_admin_credentials
 from api.config import DEFAULT_PAGE_SIZE, PROJECT_ROOT, SEARCH_THRESHOLD
 from api.db import get_pool
 from api.utils import blob_path_to_url, embedding_to_pgvector
@@ -123,12 +124,13 @@ def embedding_from_face_list(faces) -> str:
     return embedding_to_pgvector(query_face["embedding"])
 
 
-@router.get("/search/filters")
+@router.get("/search/filters", dependencies=[Depends(verify_admin_credentials)])
 async def get_search_filters():
     """
     Filter options for the search page: the default similarity threshold
     (from .env, used to preset the UI slider) and every distinct event name
-    currently tagged on test images (for the event dropdown).
+    currently tagged on test images (for the event dropdown). Admin-only --
+    the public page's camera search doesn't offer these filters.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -141,7 +143,7 @@ async def get_search_filters():
     }
 
 
-@router.get("/search_by_event")
+@router.get("/search_by_event", dependencies=[Depends(verify_admin_credentials)])
 async def search_by_event(
     event_name: str = Query(...),
     page: int = Query(default=1, ge=1),
@@ -212,6 +214,9 @@ async def search_by_event(
 
 @router.post("/search")
 async def search_by_image(
+    # Public route -- the main page's camera-capture search depends on it
+    # being unauthenticated. Every other search mode below requires admin
+    # login.
     file: UploadFile = File(...),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=100),
@@ -250,7 +255,7 @@ async def search_by_image(
     }
 
 
-@router.get("/search_by_employee")
+@router.get("/search_by_employee", dependencies=[Depends(verify_admin_credentials)])
 async def search_by_employee(
     employee_id: str = Query(...),
     page: int = Query(default=1, ge=1),

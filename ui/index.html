@@ -33,22 +33,6 @@
     margin: 0 0 20px;
     padding: 0 6px;
   }
-  .nav-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 10px 12px;
-    border: none;
-    background: transparent;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #444;
-    cursor: pointer;
-    margin-bottom: 4px;
-  }
-  .nav-item:hover { background: #f1f1f3; }
-  .nav-item.active { background: #2563eb; color: white; }
   #sidebar-footer {
     margin-top: auto;
     border-top: 1px solid #e5e7eb;
@@ -68,9 +52,7 @@
     flex: 1;
     padding: 24px 32px;
   }
-  .panel { display: none; }
-  .panel.active { display: block; }
-  .panel h2 { font-size: 18px; margin: 0 0 16px; }
+  #main-content h2 { font-size: 18px; margin: 0 0 16px; }
 
   .card-box {
     background: white;
@@ -86,76 +68,8 @@
     flex-wrap: wrap;
     gap: 10px;
   }
-  .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .filter-group label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    white-space: nowrap;
-  }
-  .filter-group input[type="date"] {
-    width: 130px;
-  }
-  .filter-group select {
-    width: 110px;
-  }
-  .filter-group input[type="date"],
-  .filter-group select {
-    font-size: 13px;
-    padding: 6px 8px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: white;
-  }
-  #employee-input-wrap { position: relative; width: 200px; }
-  #eventOnlySelect {
-    width: 200px;
-    font-size: 14px;
-    padding: 8px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: white;
-  }
-  #employeeInput {
-    width: 100%;
-    font-size: 14px;
-    padding: 8px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-  }
-  #suggestions {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    max-height: 180px;
-    overflow-y: auto;
-    z-index: 10;
-    display: none;
-  }
-  #suggestions.open { display: block; }
-  .suggestion-item { padding: 8px 10px; font-size: 14px; cursor: pointer; }
-  .suggestion-item:hover { background: #f1f1f3; }
-
-  input[type="file"] {
-    font-size: 14px;
-    padding: 6px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: #fafafa;
-    cursor: pointer;
-  }
 
   /* ---------- Camera capture (search by image) ---------- */
-  #openCameraBtn { background: #e5e7eb; color: #111; }
   #cameraThumb {
     display: none;
     width: 42px;
@@ -188,12 +102,12 @@
     font-family: inherit;
   }
 
-  #searchBtn, #identifyBtn {
+  #searchBtn {
     background: #2563eb;
     color: white;
     font-weight: 600;
   }
-  #searchBtn:disabled, #identifyBtn:disabled { background: #9ca3af; cursor: default; }
+  #searchBtn:disabled { background: #9ca3af; cursor: default; }
 
   #results-toolbar {
     display: flex;
@@ -267,20 +181,6 @@
     color: #111;
   }
 
-  #identify-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  #identifyStatus { font-size: 14px; color: #555; margin-bottom: 10px; }
-  #identifyResult img {
-    max-width: 100%;
-    border-radius: 8px;
-    display: block;
-    cursor: pointer;
-  }
-
   #modal-overlay {
     display: none;
     position: fixed;
@@ -331,11 +231,6 @@
   #modalPrevBtn { left: 24px; }
   #modalNextBtn { right: 24px; }
   .modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
-  /* Simple mode (e.g. the Identify Photo result) has no nav/annotate controls */
-  #modal-overlay.modal-simple .modal-nav-btn,
-  #modal-overlay.modal-simple #modal-toolbar {
-    display: none;
-  }
   #modal-toolbar { display: flex; gap: 10px; }
   #modalAnnotateBtn { background: #e5e7eb; color: #111; font-weight: 600; }
 </style>
@@ -346,10 +241,6 @@
 
   <div id="sidebar">
     <h1>Face Recognition</h1>
-    <button class="nav-item active" data-panel="panel-search" id="navSearch">Search by Image</button>
-    <button class="nav-item" data-panel="panel-search" id="navSearchEmp">Search by Employee ID</button>
-    <button class="nav-item" data-panel="panel-identify" id="navIdentify">Identify Photo</button>
-    <button class="nav-item" data-panel="panel-search" id="navSearchEvent">Search by Event</button>
     <div id="sidebar-footer">
       <a id="adminLink" href="/admin.html">Admin &rarr;</a>
     </div>
@@ -357,40 +248,15 @@
 
   <div id="main-content">
 
-    <!-- ================= SEARCH PANEL ================= -->
-    <div class="panel active" id="panel-search">
-      <h2 id="panelSearchHeading">Search photos by face</h2>
+    <!-- ================= SEARCH BY CAMERA ================= -->
+    <div id="panel-search">
+      <h2>Search photos by face (camera)</h2>
 
       <div id="control-bar" class="card-box">
         <div id="search-row">
           <div id="image-input-group">
-            <input type="file" id="fileInput" accept="image/*" />
             <button type="button" id="openCameraBtn">Use Camera</button>
             <img id="cameraThumb" alt="captured" />
-          </div>
-          <div id="employee-input-group" style="display:none">
-            <div id="employee-input-wrap">
-              <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
-              <div id="suggestions"></div>
-            </div>
-          </div>
-          <div id="event-input-group" style="display:none">
-            <select id="eventOnlySelect">
-              <option value="" disabled selected>Select an event</option>
-            </select>
-          </div>
-
-          <div class="filter-group" id="eventFilterGroup">
-            <label for="eventSelect">Event</label>
-            <select id="eventSelect"><option value="">All events</option></select>
-          </div>
-          <div class="filter-group">
-            <label for="dateFromInput">From</label>
-            <input type="date" id="dateFromInput" />
-          </div>
-          <div class="filter-group">
-            <label for="dateToInput">To</label>
-            <input type="date" id="dateToInput" />
           </div>
 
           <button id="searchBtn" disabled>Search</button>
@@ -421,19 +287,6 @@
       <button id="loadMoreBtn" style="display:none">Load more</button>
     </div>
 
-    <!-- ================= IDENTIFY PANEL ================= -->
-    <div class="panel" id="panel-identify">
-      <h2>Identify people in a photo</h2>
-      <div class="card-box">
-        <div id="identify-row">
-          <input type="file" id="identifyFileInput" accept="image/*" />
-          <button id="identifyBtn" disabled>Identify</button>
-        </div>
-        <div id="identifyStatus"></div>
-        <div id="identifyResult"></div>
-      </div>
-    </div>
-
   </div>
 </div>
 
@@ -458,13 +311,8 @@ let hasMore = false;
 let isLoading = false;
 let viewMode = "original"; // "original" | "annotated"
 let allResults = [];
-let allPersons = [];
-let selectedEmployeeId = null;
-let searchMode = "image"; // "image" | "employee"
-let searchedPersonName = null; // set when searchMode === "employee", used as the label in annotated downloads
 const PAGE_SIZE = 12;
 
-const fileInput = document.getElementById("fileInput");
 const searchBtn = document.getElementById("searchBtn");
 const originalBtn = document.getElementById("originalBtn");
 const annotatedBtn = document.getElementById("annotatedBtn");
@@ -480,180 +328,10 @@ const modalPrevBtn = document.getElementById("modalPrevBtn");
 const modalNextBtn = document.getElementById("modalNextBtn");
 const modalAnnotateBtn = document.getElementById("modalAnnotateBtn");
 
-let modalMode = null;    // "results" (nav + annotate) | "simple" (Identify Photo)
 let modalIndex = 0;
 let modalAnnotated = false;
 
-const employeeInputGroup = document.getElementById("employee-input-group");
-const imageInputGroup = document.getElementById("image-input-group");
-const employeeInput = document.getElementById("employeeInput");
-const suggestionsEl = document.getElementById("suggestions");
-
-const eventInputGroup = document.getElementById("event-input-group");
-const eventOnlySelect = document.getElementById("eventOnlySelect");
-const eventFilterGroup = document.getElementById("eventFilterGroup");
-const panelSearchHeading = document.getElementById("panelSearchHeading");
-
-const dateFromInput = document.getElementById("dateFromInput");
-const dateToInput = document.getElementById("dateToInput");
-const eventSelect = document.getElementById("eventSelect");
-
-// --- Sidebar navigation ---
-const navButtons = document.querySelectorAll(".nav-item");
-const panels = document.querySelectorAll(".panel");
-
-function showPanel(panelId) {
-  panels.forEach(p => p.classList.toggle("active", p.id === panelId));
-}
-
-document.getElementById("navSearch").addEventListener("click", () => {
-  setActiveNav("navSearch");
-  setSearchMode("image");
-  showPanel("panel-search");
-});
-document.getElementById("navSearchEmp").addEventListener("click", () => {
-  setActiveNav("navSearchEmp");
-  setSearchMode("employee");
-  showPanel("panel-search");
-});
-document.getElementById("navIdentify").addEventListener("click", () => {
-  setActiveNav("navIdentify");
-  stopCamera();
-  showPanel("panel-identify");
-});
-document.getElementById("navSearchEvent").addEventListener("click", () => {
-  setActiveNav("navSearchEvent");
-  setSearchMode("event");
-  showPanel("panel-search");
-});
-
-function setActiveNav(id) {
-  navButtons.forEach(b => b.classList.toggle("active", b.id === id));
-}
-
-// --- Search mode (image / employee / event), driven by sidebar now ---
-function setSearchMode(mode) {
-  searchMode = mode;
-  if (mode !== "image") stopCamera();
-  imageInputGroup.style.display = mode === "image" ? "" : "none";
-  employeeInputGroup.style.display = mode === "employee" ? "" : "none";
-  eventInputGroup.style.display = mode === "event" ? "" : "none";
-  // The optional Event filter (used to narrow image/employee search) would
-  // be redundant with the event picker above, so it's hidden in event mode.
-  eventFilterGroup.style.display = mode === "event" ? "none" : "";
-  panelSearchHeading.textContent = mode === "event" ? "Browse photos by event" : "Search photos by face";
-  updateSearchBtnState();
-}
-
-function updateSearchBtnState() {
-  if (searchMode === "image") {
-    searchBtn.disabled = !selectedFile;
-  } else if (searchMode === "employee") {
-    searchBtn.disabled = !selectedEmployeeId;
-  } else {
-    searchBtn.disabled = !eventOnlySelect.value;
-  }
-}
-
-eventOnlySelect.addEventListener("change", updateSearchBtnState);
-
-// --- Load the reference persons list for the dropdown/typeahead ---
-async function loadPersons() {
-  try {
-    const res = await fetch(`${API_BASE}/persons`);
-    const data = await res.json();
-    allPersons = data.persons;
-  } catch (e) {
-    console.error("Could not load persons list", e);
-  }
-}
-loadPersons();
-
-// --- Load known event names for the filter dropdown ---
-async function loadSearchFilters() {
-  try {
-    const res = await fetch(`${API_BASE}/search/filters`);
-    const data = await res.json();
-
-    eventSelect.innerHTML = '<option value="">All events</option>';
-    eventOnlySelect.innerHTML = '<option value="" disabled selected>Select an event</option>';
-    for (const ev of data.event_names) {
-      const opt = document.createElement("option");
-      opt.value = ev;
-      opt.textContent = ev;
-      eventSelect.appendChild(opt);
-
-      const opt2 = document.createElement("option");
-      opt2.value = ev;
-      opt2.textContent = ev;
-      eventOnlySelect.appendChild(opt2);
-    }
-  } catch (e) {
-    console.error("Could not load search filters", e);
-  }
-}
-loadSearchFilters();
-
-// Builds the shared date/event query params used by both search endpoints.
-function buildFilterParams() {
-  const params = new URLSearchParams();
-  if (dateFromInput.value) params.set("date_from", dateFromInput.value);
-  if (dateToInput.value) params.set("date_to", dateToInput.value);
-  if (eventSelect.value) params.set("event_name", eventSelect.value);
-  return params;
-}
-
-function renderSuggestions(list) {
-  suggestionsEl.innerHTML = "";
-  if (list.length === 0) {
-    suggestionsEl.classList.remove("open");
-    return;
-  }
-  for (const p of list) {
-    const item = document.createElement("div");
-    item.className = "suggestion-item";
-    item.textContent = `${p.employee_id} - ${p.name}`;
-    item.addEventListener("click", () => {
-      employeeInput.value = `${p.employee_id} - ${p.name}`;
-      selectedEmployeeId = p.employee_id;
-      updateSearchBtnState();
-      suggestionsEl.classList.remove("open");
-    });
-    suggestionsEl.appendChild(item);
-  }
-  suggestionsEl.classList.add("open");
-}
-
-employeeInput.addEventListener("focus", () => renderSuggestions(allPersons));
-
-employeeInput.addEventListener("input", () => {
-  selectedEmployeeId = null;
-  updateSearchBtnState();
-  const query = employeeInput.value.trim().toLowerCase();
-  if (!query) {
-    renderSuggestions(allPersons);
-    return;
-  }
-  const matches = allPersons.filter(p =>
-    p.name.toLowerCase().includes(query) || p.employee_id.toLowerCase().includes(query)
-  );
-  renderSuggestions(matches);
-});
-
-document.addEventListener("click", (e) => {
-  if (!e.target.closest("#employee-input-wrap")) {
-    suggestionsEl.classList.remove("open");
-  }
-});
-
-// --- File selection ---
-fileInput.addEventListener("change", () => {
-  selectedFile = fileInput.files[0] || null;
-  cameraThumb.style.display = "none";
-  updateSearchBtnState();
-});
-
-// --- Camera capture (search by image) ---
+// --- Camera capture (the only way to select a search image on this page) ---
 const openCameraBtn = document.getElementById("openCameraBtn");
 const capturePhotoBtn = document.getElementById("capturePhotoBtn");
 const closeCameraBtn = document.getElementById("closeCameraBtn");
@@ -662,6 +340,10 @@ const cameraPreview = document.getElementById("cameraPreview");
 const captureCanvas = document.getElementById("captureCanvas");
 const cameraThumb = document.getElementById("cameraThumb");
 let cameraStream = null;
+
+function updateSearchBtnState() {
+  searchBtn.disabled = !selectedFile;
+}
 
 async function openCamera() {
   try {
@@ -694,7 +376,6 @@ capturePhotoBtn.addEventListener("click", () => {
   captureCanvas.getContext("2d").drawImage(cameraPreview, 0, 0);
   captureCanvas.toBlob(blob => {
     selectedFile = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
-    fileInput.value = "";
     cameraThumb.src = URL.createObjectURL(blob);
     cameraThumb.style.display = "inline-block";
     updateSearchBtnState();
@@ -702,7 +383,7 @@ capturePhotoBtn.addEventListener("click", () => {
   }, "image/jpeg", 0.92);
 });
 
-// --- Single search button, behavior depends on current mode ---
+// --- Search ---
 searchBtn.addEventListener("click", () => {
   resultsEl.innerHTML = "";
   allResults = [];
@@ -732,14 +413,9 @@ function resolveImageUrl(rawUrl) {
 }
 
 function annotatedUrlFor(item) {
-  if (item.bbox) {
-    const b = item.bbox;
-    return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
-           `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
-  }
-  // Event-browse results have no single matched face/bbox -- draw a
-  // labeled box on every face already stored for that photo instead.
-  return `${API_BASE}/admin/test_images/${item.image_id}/annotated`;
+  const b = item.bbox;
+  return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
+         `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
 }
 
 function imageUrlFor(item) {
@@ -818,7 +494,7 @@ downloadAllBtn.addEventListener("click", async () => {
       } : null,
     })),
     annotated: viewMode === "annotated",
-    label: searchMode === "employee" ? searchedPersonName : null,
+    label: null,
   };
 
   try {
@@ -849,10 +525,8 @@ downloadAllBtn.addEventListener("click", async () => {
 // Full-screen viewer for search result cards: prev/next through the
 // currently loaded results, plus a per-image annotate toggle.
 function openModal(index) {
-  modalMode = "results";
   modalIndex = index;
   modalAnnotated = viewMode === "annotated";
-  modalOverlay.classList.remove("modal-simple");
   renderModal();
   modalOverlay.classList.add("open");
 }
@@ -872,19 +546,9 @@ function renderModal() {
   modalNextBtn.disabled = modalIndex === allResults.length - 1;
 }
 
-// Simple full-screen viewer with no nav/annotate -- used by the
-// "Identify" result image below, which is already a single composite image.
-function openModalWithUrl(url) {
-  modalMode = "simple";
-  modalImg.src = url;
-  modalOverlay.classList.add("modal-simple");
-  modalOverlay.classList.add("open");
-}
-
 function closeModal() {
   modalOverlay.classList.remove("open");
   modalImg.src = "";
-  modalMode = null;
 }
 
 modalClose.addEventListener("click", closeModal);
@@ -896,38 +560,22 @@ modalAnnotateBtn.addEventListener("click", () => { modalAnnotated = !modalAnnota
 document.addEventListener("keydown", (e) => {
   if (!modalOverlay.classList.contains("open")) return;
   if (e.key === "Escape") { closeModal(); return; }
-  if (modalMode !== "results") return;
   if (e.key === "ArrowLeft" && !modalPrevBtn.disabled) { modalIndex--; renderModal(); }
   if (e.key === "ArrowRight" && !modalNextBtn.disabled) { modalIndex++; renderModal(); }
 });
 
 async function fetchPage() {
-  if (isLoading) return;
-  if (searchMode === "image" && !selectedFile) return;
-  if (searchMode === "employee" && !selectedEmployeeId) return;
-  if (searchMode === "event" && !eventOnlySelect.value) return;
+  if (isLoading || !selectedFile) return;
 
   isLoading = true;
   loaderEl.textContent = "Loading...";
   loadMoreBtn.style.display = "none";
 
   try {
-    let res;
-    const filterParams = buildFilterParams();
-    if (searchMode === "image") {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
-      res = await fetch(url, { method: "POST", body: formData });
-    } else if (searchMode === "employee") {
-      filterParams.set("employee_id", selectedEmployeeId);
-      const url = `${API_BASE}/search_by_employee?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
-      res = await fetch(url, { method: "GET" });
-    } else {
-      filterParams.set("event_name", eventOnlySelect.value);
-      const url = `${API_BASE}/search_by_event?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
-      res = await fetch(url, { method: "GET" });
-    }
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}`;
+    const res = await fetch(url, { method: "POST", body: formData });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -939,7 +587,6 @@ async function fetchPage() {
 
     const data = await res.json();
     hasMore = data.has_more;
-    if (searchMode === "employee") searchedPersonName = data.name;
     statusEl.textContent = `Found ${data.total_count} photo(s).`;
 
     for (const item of data.results) {
@@ -963,45 +610,6 @@ loadMoreBtn.addEventListener("click", fetchPage);
 window.addEventListener("scroll", () => {
   const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
   if (nearBottom && hasMore && !isLoading) fetchPage();
-});
-
-// --- Identify people in a photo (group or solo) ---
-const identifyFileInput = document.getElementById("identifyFileInput");
-const identifyBtn = document.getElementById("identifyBtn");
-const identifyStatus = document.getElementById("identifyStatus");
-const identifyResult = document.getElementById("identifyResult");
-let identifySelectedFile = null;
-
-identifyFileInput.addEventListener("change", () => {
-  identifySelectedFile = identifyFileInput.files[0] || null;
-  identifyBtn.disabled = !identifySelectedFile;
-});
-
-identifyBtn.addEventListener("click", async () => {
-  if (!identifySelectedFile) return;
-  identifyStatus.textContent = "Identifying...";
-  identifyResult.innerHTML = "";
-
-  const formData = new FormData();
-  formData.append("file", identifySelectedFile);
-
-  try {
-    const res = await fetch(`${API_BASE}/identify`, { method: "POST", body: formData });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      identifyStatus.textContent = "Error: " + (err.detail || res.statusText);
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    identifyStatus.textContent = "";
-    const img = document.createElement("img");
-    img.src = url;
-    img.addEventListener("click", () => openModalWithUrl(url));
-    identifyResult.appendChild(img);
-  } catch (e) {
-    identifyStatus.textContent = "Request failed: " + e.message;
-  }
 });
 </script>
 

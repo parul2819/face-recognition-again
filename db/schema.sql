@@ -89,6 +89,19 @@ CREATE TABLE IF NOT EXISTS ingestion_jobs (
     completed_at TIMESTAMP
 );
 
+-- The OneDrive folder's own display name (resolved best-effort once the
+-- background job starts), so "View Upload History" can show something
+-- readable instead of the raw share URL. Null if resolution failed or
+-- hasn't happened yet -- the UI falls back to folder_url in that case.
+ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS folder_name TEXT;
+
+-- Images skipped up front because they were already in the library (by
+-- filename) before per-image processing started -- distinct from
+-- failed_images, which counts images that were attempted and errored.
+-- Lets the history table say "N duplicates skipped" instead of a bare
+-- "completed" that gives no explanation for 0 added/0 failed.
+ALTER TABLE ingestion_jobs ADD COLUMN IF NOT EXISTS skipped_images INT NOT NULL DEFAULT 0;
+
 -- One row per failed image, written immediately (not batched -- failures
 -- are expected to be rare, so this stays small).
 CREATE TABLE IF NOT EXISTS ingestion_job_failures (

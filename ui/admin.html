@@ -389,38 +389,123 @@
   .onedrive-failures-list { font-size: 12px; color: #b91c1c; max-height: 140px; overflow-y: auto; margin-top: 8px; }
   .onedrive-failures-list div { padding: 2px 0; border-bottom: 1px solid #fee2e2; }
 
-  .onedrive-history-list { margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-  .onedrive-history-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #f1f1f3;
-    font-size: 13px;
+  .onedrive-history-list { overflow-x: auto; }
+  .onedrive-history-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  .onedrive-history-table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #888;
+    padding: 6px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
   }
-  .onedrive-history-row:last-child { border-bottom: none; }
-  .onedrive-history-url {
-    color: #444;
+  .onedrive-history-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f1f3;
+    vertical-align: top;
+  }
+  .onedrive-history-table tr:last-child td { border-bottom: none; }
+  .onedrive-history-table td.num { text-align: right; white-space: nowrap; }
+  .onedrive-history-folder {
+    color: #222;
+    font-weight: 600;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 320px;
   }
-  .onedrive-history-meta { color: #888; font-size: 12px; flex-shrink: 0; text-align: right; }
+  .onedrive-history-when { color: #888; font-size: 12px; white-space: nowrap; }
   .onedrive-history-status {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 11px;
     font-weight: 600;
-    margin-left: 6px;
+    white-space: nowrap;
   }
   .onedrive-history-status.completed { background: #dcfce7; color: #16a34a; }
   .onedrive-history-status.failed { background: #fee2e2; color: #dc2626; }
   .onedrive-history-status.processing, .onedrive-history-status.pending { background: #dbeafe; color: #2563eb; }
+  .onedrive-history-note { color: #888; font-size: 12px; margin-top: 4px; max-width: 220px; }
+  .onedrive-history-note.is-error { color: #b91c1c; }
   .onedrive-history-empty { font-size: 13px; color: #888; padding: 8px 0; }
-  .onedrive-history-row.is-delete .onedrive-history-url { color: #b91c1c; }
+  .onedrive-history-table tr.is-delete .onedrive-history-folder { color: #b91c1c; }
+
+  /* ---------- Search tools (Search by Image/Employee/Event, Identify Photo) ---------- */
+  #search-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .filter-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .filter-group label { font-size: 12px; font-weight: 600; color: #555; white-space: nowrap; margin-bottom: 0; }
+  .filter-group input[type="date"] { width: 130px; }
+  .filter-group select { width: 110px; }
+  .filter-group input[type="date"], .filter-group select {
+    font-size: 13px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white;
+  }
+  #employee-input-wrap { position: relative; width: 200px; }
+  #eventOnlySelect { width: 200px; font-size: 14px; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: white; }
+  #employeeInput { width: 100%; font-size: 14px; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+  #suggestions {
+    position: absolute; top: 100%; left: 0; right: 0; background: white;
+    border: 1px solid #d1d5db; border-radius: 6px; max-height: 180px; overflow-y: auto; z-index: 10; display: none;
+  }
+  #suggestions.open { display: block; }
+  .suggestion-item { padding: 8px 10px; font-size: 14px; cursor: pointer; }
+  .suggestion-item:hover { background: #f1f1f3; }
+
+  #searchBtn { background: #2563eb; color: white; font-weight: 600; }
+  #searchBtn:disabled { background: #9ca3af; cursor: default; }
+
+  #results-toolbar { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+  #view-toggle { display: flex; gap: 4px; background: #f1f1f3; padding: 3px; border-radius: 7px; }
+  .toggle-btn { background: transparent; color: #555; font-size: 12px; padding: 5px 9px; }
+  .toggle-btn.active { background: #2563eb; color: white; }
+
+  #downloadAllBtn { background: #16a34a; color: white; font-weight: 600; font-size: 12px; padding: 6px 10px; }
+  #downloadAllBtn:disabled { background: #9ca3af; cursor: default; }
+
+  #status { font-size: 14px; color: #555; margin-bottom: 16px; }
+
+  #results { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .card img { width: 100%; height: 180px; object-fit: cover; display: block; cursor: pointer; }
+  .card-footer { display: flex; justify-content: flex-end; padding: 6px 8px; }
+  .downloadBtn { background: #f1f1f3; color: #333; font-size: 12px; padding: 4px 10px; }
+  .downloadBtn:hover { background: #e5e7eb; }
+
+  #loader { text-align: center; padding: 20px; color: #888; font-size: 14px; }
+  #loadMoreBtn { display: block; margin: 10px auto; background: #e5e7eb; color: #111; }
+
+  #identify-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  #identifyStatus { font-size: 14px; color: #555; margin-bottom: 10px; }
+  #identifyResult img { max-width: 100%; border-radius: 8px; display: block; cursor: pointer; }
+
+  /* Search-results viewer -- separate from the gallery viewer above: no
+     delete button, just prev/next and a per-image annotate toggle. */
+  #modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 30px;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal-content { position: relative; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  #modal-content img { max-width: 90vw; max-height: 78vh; display: block; border-radius: 6px; }
+  #modal-close {
+    position: absolute; top: -40px; right: 0; background: white; color: #111; border-radius: 50%;
+    width: 32px; height: 32px; font-size: 18px; line-height: 1; cursor: pointer; text-align: center;
+  }
+  .modal-nav-btn {
+    position: fixed; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); color: #111;
+    border-radius: 50%; width: 44px; height: 44px; font-size: 20px; cursor: pointer; z-index: 1001;
+  }
+  #modalPrevBtn { left: 24px; }
+  #modalNextBtn { right: 24px; }
+  .modal-nav-btn:disabled { opacity: 0.25; cursor: default; }
+  #modal-toolbar { display: flex; gap: 10px; }
+  #modalAnnotateBtn { background: #e5e7eb; color: #111; font-weight: 600; }
+  /* Simple mode (the Identify Photo result) has no nav/annotate controls */
+  #modal-overlay.modal-simple .modal-nav-btn,
+  #modal-overlay.modal-simple #modal-toolbar {
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -451,6 +536,19 @@
         <button class="nav-item" id="navTestImages">Add Photos</button>
         <button class="nav-item" id="navTestImagesOneDrive">Add from OneDrive</button>
         <button class="nav-item" id="navDeleteTestImages">Delete Photos</button>
+      </div>
+    </div>
+
+    <div class="nav-group" id="groupSearch">
+      <button class="nav-group-toggle" id="toggleSearch">
+        <span>Search Tools</span>
+        <span class="chevron">&#9660;</span>
+      </button>
+      <div class="nav-group-items">
+        <button class="nav-item" id="navSearchImage">Search by Image</button>
+        <button class="nav-item" id="navSearchEmployee">Search by Employee</button>
+        <button class="nav-item" id="navSearchEvent">Search by Event</button>
+        <button class="nav-item" id="navIdentify">Identify Photo</button>
       </div>
     </div>
 
@@ -523,7 +621,9 @@
           <div class="onedrive-counts" id="personsOneDriveCounts"></div>
           <div class="onedrive-failures-list" id="personsOneDriveFailuresList"></div>
         </div>
+      </div>
 
+      <div class="card-box onedrive-history-card">
         <div class="onedrive-history-list" id="personsOneDriveHistoryList" style="display:none"></div>
       </div>
     </div>
@@ -583,7 +683,7 @@
         </div>
         <div class="field">
           <label for="oneDriveEventNameInput">Event name (optional)</label>
-          <input type="text" id="oneDriveEventNameInput" placeholder="e.g. Annual Day 2026" />
+          <input type="text" id="oneDriveEventNameInput" placeholder="Leave blank to use the OneDrive folder's name" />
         </div>
         <div class="onedrive-hint">
           Every image directly inside the folder is added (subfolders are not scanned). Filenames
@@ -605,7 +705,9 @@
           <div class="onedrive-counts" id="testImagesOneDriveCounts"></div>
           <div class="onedrive-failures-list" id="testImagesOneDriveFailuresList"></div>
         </div>
+      </div>
 
+      <div class="card-box onedrive-history-card">
         <div class="onedrive-history-list" id="testImagesOneDriveHistoryList" style="display:none"></div>
       </div>
     </div>
@@ -626,6 +728,72 @@
         <div id="imagesGrid"></div>
         <div id="testImagesDeleteEmpty" style="display:none">No photos yet.</div>
         <div id="testImagesDeleteStatus"></div>
+      </div>
+    </div>
+
+    <!-- ================= SEARCH (IMAGE / EMPLOYEE / EVENT) ================= -->
+    <div class="panel" id="panel-search">
+      <h2 id="panelSearchHeading">Search photos by face</h2>
+
+      <div id="control-bar" class="card-box">
+        <div id="search-row">
+          <div id="image-input-group">
+            <input type="file" id="fileInput" accept="image/*" />
+          </div>
+          <div id="employee-input-group" style="display:none">
+            <div id="employee-input-wrap">
+              <input type="text" id="employeeInput" placeholder="Click or type a name..." autocomplete="off" />
+              <div id="suggestions"></div>
+            </div>
+          </div>
+          <div id="event-input-group" style="display:none">
+            <select id="eventOnlySelect">
+              <option value="" disabled selected>Select an event</option>
+            </select>
+          </div>
+
+          <div class="filter-group" id="eventFilterGroup">
+            <label for="eventSelect">Event</label>
+            <select id="eventSelect"><option value="">All events</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="dateFromInput">From</label>
+            <input type="date" id="dateFromInput" />
+          </div>
+          <div class="filter-group">
+            <label for="dateToInput">To</label>
+            <input type="date" id="dateToInput" />
+          </div>
+
+          <button id="searchBtn" disabled>Search</button>
+
+          <div id="results-toolbar">
+            <div id="view-toggle">
+              <button id="originalBtn" class="toggle-btn active">Original View</button>
+              <button id="annotatedBtn" class="toggle-btn">Annotated View</button>
+            </div>
+            <button id="downloadAllBtn" disabled>Download All (.zip)</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="status"></div>
+
+      <div id="results"></div>
+      <div id="loader"></div>
+      <button id="loadMoreBtn" style="display:none">Load more</button>
+    </div>
+
+    <!-- ================= IDENTIFY PHOTO ================= -->
+    <div class="panel" id="panel-identify">
+      <h2>Identify people in a photo</h2>
+      <div class="card-box">
+        <div id="identify-row">
+          <input type="file" id="identifyFileInput" accept="image/*" />
+          <button id="identifyBtn" disabled>Identify</button>
+        </div>
+        <div id="identifyStatus"></div>
+        <div id="identifyResult"></div>
       </div>
     </div>
 
@@ -697,17 +865,31 @@
   <button class="gallery-nav-btn" id="galleryNextBtn">&#8594;</button>
 </div>
 
+<!-- Search results viewer: full-screen with prev/next, per-image annotate
+     toggle -- no delete button (used by Search by Image/Employee/Event and
+     the Identify Photo result). -->
+<div id="modal-overlay">
+  <button class="modal-nav-btn" id="modalPrevBtn">&#8592;</button>
+  <div id="modal-content">
+    <div id="modal-close">&times;</div>
+    <img id="modal-img" src="" alt="full view" />
+    <div id="modal-toolbar">
+      <button id="modalAnnotateBtn">Show Annotated</button>
+    </div>
+  </div>
+  <button class="modal-nav-btn" id="modalNextBtn">&#8594;</button>
+</div>
+
 <script>
 const API_BASE = "http://127.0.0.1:8001";
 
 // --- Logout ---
 // HTTP Basic Auth has no real server-side session to end -- the browser just
-// caches the credentials you typed once and keeps resending them. This is
-// the standard best-effort trick: send a request with deliberately wrong
-// credentials so the browser overwrites its cached (valid) ones for this
-// origin/realm. Most browsers then forget the old login and re-prompt on the
-// next admin request. It's not 100% guaranteed on every browser, but it's
-// the closest thing to a "logout" Basic Auth supports.
+// caches the credentials you typed once and keeps resending them. Logging
+// out asks the server to rotate its Basic Auth realm (see rotate_realm() in
+// api/auth.py); once that changes, this browser's cached credentials no
+// longer match any realm it knows about, so the very next admin request
+// (including this page's own reload below) gets a fresh native login prompt.
 const confirmLogoutOverlay = document.getElementById("confirm-logout-overlay");
 const confirmLogoutCancelBtn = document.getElementById("confirmLogoutCancelBtn");
 const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
@@ -726,10 +908,7 @@ confirmLogoutBtn.addEventListener("click", async () => {
   confirmLogoutBtn.disabled = true;
   confirmLogoutBtn.textContent = "Logging out...";
   try {
-    await fetch(`${API_BASE}/admin.html`, {
-      headers: { Authorization: "Basic " + btoa("logout:logout") },
-      cache: "no-store",
-    });
+    await fetch(`${API_BASE}/admin/logout`, { method: "POST", cache: "no-store" });
   } catch (e) {
     // Ignore -- we navigate away regardless.
   }
@@ -1556,7 +1735,7 @@ confirmAllDeleteBtn.addEventListener("click", async () => {
 // bar + failures list) is identical for either target.
 // ============================================================
 const STATUS_LABELS = {
-  pending: "Pending...",
+  pending: "Starting...",
   processing: "Processing...",
   completed: "Completed",
   failed: "Failed",
@@ -1565,8 +1744,10 @@ const STATUS_LABELS = {
 function setupOneDriveJobPanel(config) {
   let currentJobId = null;
 
+  // Returns the job's status so callers (see the startup grace period
+  // below) can tell whether it's worth checking again.
   async function refreshJob() {
-    if (!currentJobId) return;
+    if (!currentJobId) return undefined;
     config.refreshBtn.disabled = true;
     try {
       const res = await fetch(`${API_BASE}/admin/ingestion_jobs/${encodeURIComponent(currentJobId)}`);
@@ -1576,17 +1757,19 @@ function setupOneDriveJobPanel(config) {
       if (!res.ok) {
         config.statusEl.textContent = "Error: " + (data.detail || res.statusText);
         config.statusEl.className = "status-error";
-        return;
+        return undefined;
       }
 
       renderJob(data);
       if (data.failed_images > 0) {
         await loadFailures();
       }
+      return data.status;
     } catch (e) {
       config.refreshBtn.disabled = false;
       config.statusEl.textContent = "Request failed: " + e.message;
       config.statusEl.className = "status-error";
+      return undefined;
     }
   }
 
@@ -1657,7 +1840,23 @@ function setupOneDriveJobPanel(config) {
       config.statusEl.textContent = "Started -- processing in the background.";
       config.statusEl.className = "status-success";
       config.refreshBtn.style.display = "";
-      await refreshJob();
+      // The background job is only scheduled, not necessarily running yet,
+      // the instant this response comes back -- checking right away tends
+      // to catch it still at "pending" (0/0/0), even for a folder that's
+      // about to finish almost instantly (e.g. everything in it is already
+      // in the library). This briefly re-checks a few times so that common
+      // case lands on the real result instead of looking stuck. It's a
+      // short, bounded grace period for job *startup* only -- it stops the
+      // moment the job leaves "pending" or after ~6s regardless, and does
+      // not become the continuous progress polling that
+      // docs/folder-batch-ingestion.md requirement 3 rules out; a longer
+      // bulk job still relies on the manual "Show me the update" button
+      // from here on, same as before.
+      for (let attempt = 0; attempt < 6; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const status = await refreshJob();
+        if (status !== "pending") break;
+      }
     } catch (e) {
       config.startBtn.disabled = false;
       config.statusEl.textContent = "Request failed: " + e.message;
@@ -1694,30 +1893,93 @@ function setupOneDriveJobPanel(config) {
       }
 
       config.historyList.innerHTML = "";
+
+      const table = document.createElement("table");
+      table.className = "onedrive-history-table";
+      table.innerHTML =
+        "<colgroup>" +
+        '<col style="width:150px"><col><col style="width:160px"><col style="width:60px">' +
+        '<col style="width:120px"><col style="width:60px">' +
+        '<col style="width:60px"><col style="width:150px">' +
+        "</colgroup>" +
+        "<thead><tr>" +
+        "<th>Started</th><th>Folder Link</th><th>Folder Name</th><th>Added</th><th>Duplicates skipped</th>" +
+        "<th>Failed</th><th>Total</th><th>Status</th>" +
+        "</tr></thead>";
+
+      const tbody = document.createElement("tbody");
       for (const job of data.jobs) {
-        const row = document.createElement("div");
-        row.className = "onedrive-history-row";
+        const row = document.createElement("tr");
         if (/^delete/i.test(job.folder_url)) {
           row.classList.add("is-delete");
         }
 
-        const urlSpan = document.createElement("span");
-        urlSpan.className = "onedrive-history-url";
-        urlSpan.textContent = job.folder_url;
-        urlSpan.title = job.folder_url;
+        const whenTd = document.createElement("td");
+        whenTd.className = "onedrive-history-when";
+        whenTd.textContent = job.created_at ? new Date(job.created_at).toLocaleString() : "";
+        row.appendChild(whenTd);
 
-        const metaSpan = document.createElement("span");
-        metaSpan.className = "onedrive-history-meta";
-        const when = job.created_at ? new Date(job.created_at).toLocaleString() : "";
-        const counts = `${job.processed_images} added, ${job.failed_images} failed / ${job.total_images} total`;
-        metaSpan.innerHTML =
-          `${when} &middot; ${counts}` +
-          `<span class="onedrive-history-status ${job.status}">${job.status}</span>`;
+        // Folder Link always shows the raw source (the OneDrive share URL,
+        // or the manual-upload/delete label folder_url holds for non-OneDrive
+        // rows). Truncated with an ellipsis (CSS) instead of wrapping -- the
+        // raw share URL is long enough to blow a row up to dozens of lines
+        // otherwise; the full value is still in the title tooltip.
+        const linkTd = document.createElement("td");
+        linkTd.className = "onedrive-history-folder";
+        linkTd.textContent = job.folder_url;
+        linkTd.title = job.folder_url;
+        row.appendChild(linkTd);
 
-        row.appendChild(urlSpan);
-        row.appendChild(metaSpan);
-        config.historyList.appendChild(row);
+        // Folder Name is the OneDrive folder's own display name, resolved
+        // separately once the job runs -- blank for non-OneDrive rows
+        // (manual uploads, deletes) since folder_url already holds a
+        // readable label for those.
+        const nameTd = document.createElement("td");
+        nameTd.className = "onedrive-history-folder";
+        nameTd.textContent = job.folder_name || "—";
+        row.appendChild(nameTd);
+
+        const addedTd = document.createElement("td");
+        addedTd.className = "num";
+        addedTd.textContent = job.processed_images;
+        row.appendChild(addedTd);
+
+        const skippedTd = document.createElement("td");
+        skippedTd.className = "num";
+        skippedTd.textContent = job.skipped_images || 0;
+        row.appendChild(skippedTd);
+
+        const failedTd = document.createElement("td");
+        failedTd.className = "num";
+        failedTd.textContent = job.failed_images;
+        row.appendChild(failedTd);
+
+        const totalTd = document.createElement("td");
+        totalTd.className = "num";
+        totalTd.textContent = job.total_images;
+        row.appendChild(totalTd);
+
+        const statusTd = document.createElement("td");
+        const statusSpan = document.createElement("span");
+        statusSpan.className = `onedrive-history-status ${job.status}`;
+        statusSpan.textContent = STATUS_LABELS[job.status] || job.status;
+        statusTd.appendChild(statusSpan);
+        // error_message doubles as an informational note on an otherwise
+        // successful job (e.g. "All 12 image(s) in this folder are already
+        // in the library") -- without this, a fully-duplicate folder just
+        // says "Completed" with no explanation for 0 added.
+        if (job.error_message) {
+          const noteDiv = document.createElement("div");
+          noteDiv.className = "onedrive-history-note" + (job.status === "failed" ? " is-error" : "");
+          noteDiv.textContent = job.error_message;
+          statusTd.appendChild(noteDiv);
+        }
+        row.appendChild(statusTd);
+
+        tbody.appendChild(row);
       }
+      table.appendChild(tbody);
+      config.historyList.appendChild(table);
     } catch (e) {
       config.historyList.innerHTML =
         `<div class="onedrive-history-empty">Request failed: ${e.message}</div>`;
@@ -1761,6 +2023,503 @@ setupOneDriveJobPanel({
     const eventName = document.getElementById("oneDriveEventNameInput").value.trim();
     return eventName ? { event_name: eventName } : {};
   },
+});
+
+// ============================================================
+// Search tools: Search by Image / Employee / Event, and Identify Photo.
+// Ported from the old public search page, which is now camera-search-only
+// -- these modes require admin login (see api/auth.py).
+// ============================================================
+let selectedFile = null;
+let currentPage = 1;
+let hasMore = false;
+let isLoading = false;
+let viewMode = "original"; // "original" | "annotated"
+let allResults = [];
+let allPersons = [];
+let selectedEmployeeId = null;
+let searchMode = "image"; // "image" | "employee" | "event"
+let searchedPersonName = null;
+const PAGE_SIZE = 12;
+
+const fileInput = document.getElementById("fileInput");
+const searchBtn = document.getElementById("searchBtn");
+const originalBtn = document.getElementById("originalBtn");
+const annotatedBtn = document.getElementById("annotatedBtn");
+const downloadAllBtn = document.getElementById("downloadAllBtn");
+const statusEl = document.getElementById("status");
+const resultsEl = document.getElementById("results");
+const loaderEl = document.getElementById("loader");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const modalOverlay = document.getElementById("modal-overlay");
+const modalImg = document.getElementById("modal-img");
+const modalClose = document.getElementById("modal-close");
+const modalPrevBtn = document.getElementById("modalPrevBtn");
+const modalNextBtn = document.getElementById("modalNextBtn");
+const modalAnnotateBtn = document.getElementById("modalAnnotateBtn");
+
+let modalMode = null; // "results" | "simple"
+let modalIndex = 0;
+let modalAnnotated = false;
+
+const employeeInputGroup = document.getElementById("employee-input-group");
+const imageInputGroup = document.getElementById("image-input-group");
+const employeeInput = document.getElementById("employeeInput");
+const suggestionsEl = document.getElementById("suggestions");
+
+const eventInputGroup = document.getElementById("event-input-group");
+const eventOnlySelect = document.getElementById("eventOnlySelect");
+const eventFilterGroup = document.getElementById("eventFilterGroup");
+const panelSearchHeading = document.getElementById("panelSearchHeading");
+
+const dateFromInput = document.getElementById("dateFromInput");
+const dateToInput = document.getElementById("dateToInput");
+const eventSelect = document.getElementById("eventSelect");
+
+document.getElementById("toggleSearch").addEventListener("click", () => {
+  document.getElementById("groupSearch").classList.toggle("collapsed");
+});
+
+document.getElementById("navSearchImage").addEventListener("click", () => {
+  setActiveNav("navSearchImage");
+  setSearchMode("image");
+  showPanel("panel-search");
+});
+document.getElementById("navSearchEmployee").addEventListener("click", () => {
+  setActiveNav("navSearchEmployee");
+  setSearchMode("employee");
+  showPanel("panel-search");
+});
+document.getElementById("navSearchEvent").addEventListener("click", () => {
+  setActiveNav("navSearchEvent");
+  setSearchMode("event");
+  showPanel("panel-search");
+});
+document.getElementById("navIdentify").addEventListener("click", () => {
+  setActiveNav("navIdentify");
+  showPanel("panel-identify");
+});
+
+function setSearchMode(mode) {
+  searchMode = mode;
+  imageInputGroup.style.display = mode === "image" ? "" : "none";
+  employeeInputGroup.style.display = mode === "employee" ? "" : "none";
+  eventInputGroup.style.display = mode === "event" ? "" : "none";
+  // The optional Event filter (used to narrow image/employee search) would
+  // be redundant with the event picker above, so it's hidden in event mode.
+  eventFilterGroup.style.display = mode === "event" ? "none" : "";
+  panelSearchHeading.textContent = mode === "event" ? "Browse photos by event" : "Search photos by face";
+  updateSearchBtnState();
+}
+
+function updateSearchBtnState() {
+  if (searchMode === "image") {
+    searchBtn.disabled = !selectedFile;
+  } else if (searchMode === "employee") {
+    searchBtn.disabled = !selectedEmployeeId;
+  } else {
+    searchBtn.disabled = !eventOnlySelect.value;
+  }
+}
+
+eventOnlySelect.addEventListener("change", updateSearchBtnState);
+
+// --- Load the reference persons list for the employee-search typeahead ---
+async function loadPersons() {
+  try {
+    const res = await fetch(`${API_BASE}/persons`);
+    const data = await res.json();
+    allPersons = data.persons;
+  } catch (e) {
+    console.error("Could not load persons list", e);
+  }
+}
+loadPersons();
+
+// --- Load known event names for the filter dropdowns ---
+async function loadSearchFilters() {
+  try {
+    const res = await fetch(`${API_BASE}/search/filters`);
+    const data = await res.json();
+
+    eventSelect.innerHTML = '<option value="">All events</option>';
+    eventOnlySelect.innerHTML = '<option value="" disabled selected>Select an event</option>';
+    for (const ev of data.event_names) {
+      const opt = document.createElement("option");
+      opt.value = ev;
+      opt.textContent = ev;
+      eventSelect.appendChild(opt);
+
+      const opt2 = document.createElement("option");
+      opt2.value = ev;
+      opt2.textContent = ev;
+      eventOnlySelect.appendChild(opt2);
+    }
+  } catch (e) {
+    console.error("Could not load search filters", e);
+  }
+}
+loadSearchFilters();
+
+// Builds the shared date/event query params used by both search endpoints.
+function buildFilterParams() {
+  const params = new URLSearchParams();
+  if (dateFromInput.value) params.set("date_from", dateFromInput.value);
+  if (dateToInput.value) params.set("date_to", dateToInput.value);
+  if (eventSelect.value) params.set("event_name", eventSelect.value);
+  return params;
+}
+
+function renderSuggestions(list) {
+  suggestionsEl.innerHTML = "";
+  if (list.length === 0) {
+    suggestionsEl.classList.remove("open");
+    return;
+  }
+  for (const p of list) {
+    const item = document.createElement("div");
+    item.className = "suggestion-item";
+    item.textContent = `${p.employee_id} - ${p.name}`;
+    item.addEventListener("click", () => {
+      employeeInput.value = `${p.employee_id} - ${p.name}`;
+      selectedEmployeeId = p.employee_id;
+      updateSearchBtnState();
+      suggestionsEl.classList.remove("open");
+    });
+    suggestionsEl.appendChild(item);
+  }
+  suggestionsEl.classList.add("open");
+}
+
+employeeInput.addEventListener("focus", () => renderSuggestions(allPersons));
+
+employeeInput.addEventListener("input", () => {
+  selectedEmployeeId = null;
+  updateSearchBtnState();
+  const query = employeeInput.value.trim().toLowerCase();
+  if (!query) {
+    renderSuggestions(allPersons);
+    return;
+  }
+  const matches = allPersons.filter(p =>
+    p.name.toLowerCase().includes(query) || p.employee_id.toLowerCase().includes(query)
+  );
+  renderSuggestions(matches);
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#employee-input-wrap")) {
+    suggestionsEl.classList.remove("open");
+  }
+});
+
+// --- File selection ---
+fileInput.addEventListener("change", () => {
+  selectedFile = fileInput.files[0] || null;
+  updateSearchBtnState();
+});
+
+// --- Single search button, behavior depends on current mode ---
+searchBtn.addEventListener("click", () => {
+  resultsEl.innerHTML = "";
+  allResults = [];
+  currentPage = 1;
+  hasMore = false;
+  downloadAllBtn.disabled = true;
+  fetchPage();
+});
+
+originalBtn.addEventListener("click", () => setViewMode("original"));
+annotatedBtn.addEventListener("click", () => setViewMode("annotated"));
+
+function setViewMode(mode) {
+  viewMode = mode;
+  originalBtn.classList.toggle("active", mode === "original");
+  annotatedBtn.classList.toggle("active", mode === "annotated");
+  rerenderResults();
+}
+
+// item.image_url is either a local, API-relative path ("/pics/9.jpg") or,
+// for remote-sourced rows (Wikimedia/OneDrive), already an absolute URL
+// ("https://upload.wikimedia.org/..."). Only prefix API_BASE in the first
+// case -- doing it for both produces an invalid concatenated URL.
+function resolveImageUrl(rawUrl) {
+  if (!rawUrl) return "";
+  return /^https?:\/\//i.test(rawUrl) ? rawUrl : `${API_BASE}${rawUrl}`;
+}
+
+function annotatedUrlFor(item) {
+  if (item.bbox) {
+    const b = item.bbox;
+    return `${API_BASE}/annotated?blob_path=${encodeURIComponent(item.blob_path)}` +
+           `&x=${b.x}&y=${b.y}&w=${b.width}&h=${b.height}`;
+  }
+  // Event-browse results have no single matched face/bbox -- draw a
+  // labeled box on every face already stored for that photo instead.
+  return `${API_BASE}/admin/test_images/${item.image_id}/annotated`;
+}
+
+function imageUrlFor(item) {
+  if (viewMode === "annotated") return annotatedUrlFor(item);
+  return resolveImageUrl(item.image_url);
+}
+
+function rerenderResults() {
+  resultsEl.innerHTML = "";
+  allResults.forEach((item, index) => resultsEl.appendChild(makeResultCard(item, index)));
+}
+
+function triggerSearchDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function filenameFor(item) {
+  if (item.blob_path) {
+    const parts = item.blob_path.split("/");
+    return parts[parts.length - 1];
+  }
+  if (item.source_url) {
+    try {
+      const parts = new URL(item.source_url).pathname.split("/");
+      return parts[parts.length - 1] || "image.jpg";
+    } catch (e) {
+      return "image.jpg";
+    }
+  }
+  return "image.jpg";
+}
+
+function makeResultCard(item, index) {
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const img = document.createElement("img");
+  img.src = imageUrlFor(item);
+  img.alt = "match";
+  img.addEventListener("click", () => openResultsModal(index));
+
+  const footer = document.createElement("div");
+  footer.className = "card-footer";
+  const downloadBtn = document.createElement("button");
+  downloadBtn.className = "downloadBtn";
+  downloadBtn.textContent = "Download";
+  downloadBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    triggerSearchDownload(imageUrlFor(item), filenameFor(item));
+  });
+  footer.appendChild(downloadBtn);
+
+  card.appendChild(img);
+  card.appendChild(footer);
+  return card;
+}
+
+// --- Download All (zips everything currently loaded, respecting the view mode) ---
+downloadAllBtn.addEventListener("click", async () => {
+  if (allResults.length === 0) return;
+
+  downloadAllBtn.disabled = true;
+  downloadAllBtn.textContent = "Preparing zip...";
+
+  const payload = {
+    items: allResults.map(item => ({
+      blob_path: item.blob_path,
+      source_url: item.source_url,
+      bbox: item.bbox ? {
+        x: item.bbox.x, y: item.bbox.y, width: item.bbox.width, height: item.bbox.height,
+      } : null,
+    })),
+    annotated: viewMode === "annotated",
+    label: searchMode === "employee" ? searchedPersonName : null,
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/download_zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = "Download error: " + (err.detail || res.statusText);
+      downloadAllBtn.disabled = false;
+      downloadAllBtn.textContent = "Download All (.zip)";
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    triggerSearchDownload(url, "search_results.zip");
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    statusEl.textContent = "Download failed: " + e.message;
+  }
+
+  downloadAllBtn.disabled = false;
+  downloadAllBtn.textContent = "Download All (.zip)";
+});
+
+// Full-screen viewer for search result cards: prev/next through the
+// currently loaded results, plus a per-image annotate toggle.
+function openResultsModal(index) {
+  modalMode = "results";
+  modalIndex = index;
+  modalAnnotated = viewMode === "annotated";
+  modalOverlay.classList.remove("modal-simple");
+  renderResultsModal();
+  modalOverlay.classList.add("open");
+}
+
+function renderResultsModal() {
+  if (allResults.length === 0) {
+    closeResultsModal();
+    return;
+  }
+  if (modalIndex >= allResults.length) modalIndex = allResults.length - 1;
+  if (modalIndex < 0) modalIndex = 0;
+
+  const item = allResults[modalIndex];
+  modalImg.src = modalAnnotated ? annotatedUrlFor(item) : resolveImageUrl(item.image_url);
+  modalAnnotateBtn.textContent = modalAnnotated ? "Show Original" : "Show Annotated";
+  modalPrevBtn.disabled = modalIndex === 0;
+  modalNextBtn.disabled = modalIndex === allResults.length - 1;
+}
+
+// Simple full-screen viewer with no nav/annotate -- used by the
+// "Identify" result image below, which is already a single composite image.
+function openIdentifyModal(url) {
+  modalMode = "simple";
+  modalImg.src = url;
+  modalOverlay.classList.add("modal-simple");
+  modalOverlay.classList.add("open");
+}
+
+function closeResultsModal() {
+  modalOverlay.classList.remove("open");
+  modalOverlay.classList.remove("modal-simple");
+  modalImg.src = "";
+  modalMode = null;
+}
+
+modalClose.addEventListener("click", closeResultsModal);
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeResultsModal(); });
+modalPrevBtn.addEventListener("click", () => { modalIndex--; renderResultsModal(); });
+modalNextBtn.addEventListener("click", () => { modalIndex++; renderResultsModal(); });
+modalAnnotateBtn.addEventListener("click", () => { modalAnnotated = !modalAnnotated; renderResultsModal(); });
+
+document.addEventListener("keydown", (e) => {
+  if (!modalOverlay.classList.contains("open")) return;
+  if (e.key === "Escape") { closeResultsModal(); return; }
+  if (modalMode !== "results") return;
+  if (e.key === "ArrowLeft" && !modalPrevBtn.disabled) { modalIndex--; renderResultsModal(); }
+  if (e.key === "ArrowRight" && !modalNextBtn.disabled) { modalIndex++; renderResultsModal(); }
+});
+
+async function fetchPage() {
+  if (isLoading) return;
+  if (searchMode === "image" && !selectedFile) return;
+  if (searchMode === "employee" && !selectedEmployeeId) return;
+  if (searchMode === "event" && !eventOnlySelect.value) return;
+
+  isLoading = true;
+  loaderEl.textContent = "Loading...";
+  loadMoreBtn.style.display = "none";
+
+  try {
+    let res;
+    const filterParams = buildFilterParams();
+    if (searchMode === "image") {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const url = `${API_BASE}/search?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
+      res = await fetch(url, { method: "POST", body: formData });
+    } else if (searchMode === "employee") {
+      filterParams.set("employee_id", selectedEmployeeId);
+      const url = `${API_BASE}/search_by_employee?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
+      res = await fetch(url, { method: "GET" });
+    } else {
+      filterParams.set("event_name", eventOnlySelect.value);
+      const url = `${API_BASE}/search_by_event?page=${currentPage}&page_size=${PAGE_SIZE}&${filterParams.toString()}`;
+      res = await fetch(url, { method: "GET" });
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = "Error: " + (err.detail || res.statusText);
+      loaderEl.textContent = "";
+      isLoading = false;
+      return;
+    }
+
+    const data = await res.json();
+    hasMore = data.has_more;
+    if (searchMode === "employee") searchedPersonName = data.name;
+    statusEl.textContent = `Found ${data.total_count} photo(s).`;
+
+    for (const item of data.results) {
+      allResults.push(item);
+      resultsEl.appendChild(makeResultCard(item, allResults.length - 1));
+    }
+
+    downloadAllBtn.disabled = allResults.length === 0;
+    loaderEl.textContent = "";
+    loadMoreBtn.style.display = hasMore ? "block" : "none";
+    currentPage += 1;
+  } catch (e) {
+    statusEl.textContent = "Request failed: " + e.message;
+  }
+
+  isLoading = false;
+}
+
+loadMoreBtn.addEventListener("click", fetchPage);
+
+window.addEventListener("scroll", () => {
+  const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+  if (nearBottom && hasMore && !isLoading) fetchPage();
+});
+
+// --- Identify people in a photo (group or solo) ---
+const identifyFileInput = document.getElementById("identifyFileInput");
+const identifyBtn = document.getElementById("identifyBtn");
+const identifyStatus = document.getElementById("identifyStatus");
+const identifyResult = document.getElementById("identifyResult");
+let identifySelectedFile = null;
+
+identifyFileInput.addEventListener("change", () => {
+  identifySelectedFile = identifyFileInput.files[0] || null;
+  identifyBtn.disabled = !identifySelectedFile;
+});
+
+identifyBtn.addEventListener("click", async () => {
+  if (!identifySelectedFile) return;
+  identifyStatus.textContent = "Identifying...";
+  identifyResult.innerHTML = "";
+
+  const formData = new FormData();
+  formData.append("file", identifySelectedFile);
+
+  try {
+    const res = await fetch(`${API_BASE}/identify`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      identifyStatus.textContent = "Error: " + (err.detail || res.statusText);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    identifyStatus.textContent = "";
+    const img = document.createElement("img");
+    img.src = url;
+    img.addEventListener("click", () => openIdentifyModal(url));
+    identifyResult.appendChild(img);
+  } catch (e) {
+    identifyStatus.textContent = "Request failed: " + e.message;
+  }
 });
 </script>
 

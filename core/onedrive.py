@@ -43,6 +43,17 @@ def _graph_get(url: str) -> dict:
     return response.json()
 
 
+def get_folder_name(folder_url: str) -> str:
+    """
+    Returns the OneDrive folder's own display name (not its contents) --
+    used to default a test-images ingestion job's event_name to the folder
+    name when the admin leaves that field blank.
+    """
+    encoded = _encode_share_url(folder_url)
+    item = _graph_get(f"{GRAPH_BASE_URL}/shares/{encoded}/driveItem")
+    return item.get("name", "")
+
+
 def list_folder_images(folder_url: str) -> list[dict]:
     """
     Given a OneDrive shared-folder link, returns every image file directly

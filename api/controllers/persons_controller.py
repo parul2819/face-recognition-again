@@ -1,16 +1,18 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from api.auth import verify_admin_credentials
 from api.db import get_pool
 from api.utils import blob_path_to_url
 
 router = APIRouter()
 
 
-@router.get("/persons")
+@router.get("/persons", dependencies=[Depends(verify_admin_credentials)])
 async def list_persons():
     """
     Returns every known reference person, including a photo URL, for the
-    name-search dropdown and the admin panel's person list.
+    admin panel's employee-search dropdown and person list. Admin-only --
+    the public page's search is camera-only and never needs this list.
     """
     pool = get_pool()
     async with pool.acquire() as conn:

@@ -1,8 +1,8 @@
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.auth import verify_admin_credentials
+from api import auth
 from api.config import PICS_DIR, UI_DIR
 from api.controllers import (
     admin_controller,
@@ -27,6 +27,7 @@ async def shutdown():
     await close_pool()
 
 
+app.include_router(auth.router)
 app.include_router(persons_controller.router)
 app.include_router(search_controller.router)
 app.include_router(image_controller.router)
@@ -35,14 +36,16 @@ app.include_router(admin_controller.router)
 app.include_router(download_controller.router)
 
 
-# The admin page itself needs the same Basic Auth as the /admin/* API
-# routes (same realm, so the browser's login prompt covers both after one
-# entry) -- served via an explicit route instead of the general UI static
-# mount below, which has no way to attach a dependency to just one file.
-@app.get("/admin.html", dependencies=[Depends(verify_admin_credentials)])
+# admin.html itself is served unauthenticated -- it's just markup/JS with no
+# sensitive data, and gates itself client-side via GET /admin/session,
+# showing a login form until that succeeds. All the actual admin data comes
+# from /admin/* routes, which do require a valid session (see api/auth.py).
+# Served via an explicit route instead of the general UI static mount below
+# so it can keep the no-store header (browsers were caching this page
+# across deploys, silently hiding admin UI fixes/updates until a hard
+# refresh).
+@app.get("/admin.html")
 async def admin_page():
-    # no-store: browsers were caching this page across deploys, silently
-    # hiding admin UI fixes/updates until a hard refresh.
     return FileResponse(str(UI_DIR / "admin.html"), headers={"Cache-Control": "no-store"})
 
 

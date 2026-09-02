@@ -1,57 +1,93 @@
 """
-HTTP Basic Auth for the admin panel. Protects every /admin/* API route
-(applied at the router level in admin_controller.py) and the admin.html
-page itself (applied directly to its route in main.py) -- both under the
-same Basic auth realm, so the browser's native login prompt appears once
-and is then reused automatically for every subsequent request to either.
+Server-side session auth for the admin panel. POST /admin/login checks
+credentials once and hands back a random session token as an HttpOnly
+cookie; every protected route depends on require_admin_session, which just
+checks that cookie against the in-memory _sessions store. POST /admin/logout
+deletes exactly that one session, so the very next request with the old
+cookie -- including a reload of /admin.html -- is unauthenticated and needs
+a fresh login, without affecting any other logged-in browser.
 """
 
 import secrets
+import time
 
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
 
 from api.config import ADMIN_PASSWORD, ADMIN_USERNAME
 
-# The realm is random per process start (so a server restart alone forces
-# a fresh login prompt) and can be rotated again at runtime -- see
-# rotate_realm() below for why.
-security = HTTPBasic(realm=secrets.token_hex(8))
+SESSION_COOKIE_NAME = "admin_session"
+SESSION_TTL_SECONDS = 12 * 60 * 60  # 12 hours
+
+# token -> expiry (epoch seconds). In-memory is fine here: single-process
+# admin panel, and a server restart forcing everyone to log in again is
+# acceptable.
+_sessions: dict[str, float] = {}
+
+router = APIRouter()
 
 
-def _auth_challenge_headers() -> dict[str, str]:
-    return {"WWW-Authenticate": f'Basic realm="{security.realm}"'}
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
-def rotate_realm() -> None:
-    """
-    Basic Auth has no real server-side session to end -- the browser just
-    caches whichever credentials last worked for a given (origin, realm)
-    pair and keeps resending them, and there's no reliable, cross-browser
-    way to make it forget that cache entry directly.
-
-    Changing the realm string sidesteps that: browsers key their Basic Auth
-    cache by (origin, realm), so once the realm changes, every future
-    request gets challenged under a realm the browser has no cached
-    credentials for, forcing it to prompt again -- even though the
-    underlying admin/password pair hasn't changed. Called on logout (see
-    POST /admin/logout). There's one shared admin login for the whole app,
-    not per-browser sessions, so this is intentionally global: it logs out
-    every browser holding the old prompt, not just the one that clicked
-    "Log out".
-    """
-    security.realm = secrets.token_hex(8)
+def _purge_expired() -> None:
+    now = time.time()
+    for token in [t for t, expires_at in _sessions.items() if expires_at <= now]:
+        _sessions.pop(token, None)
 
 
-def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+def create_session() -> str:
+    _purge_expired()
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = time.time() + SESSION_TTL_SECONDS
+    return token
+
+
+def invalidate_session(token: str | None) -> None:
+    if token:
+        _sessions.pop(token, None)
+
+
+def require_admin_session(request: Request) -> str:
+    """Dependency for every protected admin/search/identify route."""
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    _purge_expired()
+    if not token or token not in _sessions:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return token
+
+
+@router.post("/admin/login")
+async def login(payload: LoginRequest, response: Response):
     # secrets.compare_digest instead of == to avoid leaking timing
     # information about how many characters matched.
-    username_ok = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
-    password_ok = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    username_ok = secrets.compare_digest(payload.username, ADMIN_USERNAME)
+    password_ok = secrets.compare_digest(payload.password, ADMIN_PASSWORD)
     if not (username_ok and password_ok):
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect username or password",
-            headers=_auth_challenge_headers(),
-        )
-    return credentials.username
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    token = create_session()
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_TTL_SECONDS,
+    )
+    return {"status": "logged in"}
+
+
+@router.post("/admin/logout")
+async def logout(request: Request, response: Response):
+    invalidate_session(request.cookies.get(SESSION_COOKIE_NAME))
+    response.delete_cookie(SESSION_COOKIE_NAME)
+    return {"status": "logged out"}
+
+
+@router.get("/admin/session")
+async def check_session(_: str = Depends(require_admin_session)):
+    """Cheap check the admin page uses on load to decide whether to show
+    the login form or the real admin panel."""
+    return {"authenticated": True}

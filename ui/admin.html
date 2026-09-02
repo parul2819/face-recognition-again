@@ -14,6 +14,7 @@
   }
 
   #layout { display: flex; min-height: 100vh; }
+  #layout[hidden] { display: none; }
 
   /* ---------- Sidebar ---------- */
   #sidebar {
@@ -77,14 +78,6 @@
   .nav-item.active { background: #2563eb; color: white; }
 
   #sidebar-footer { margin-top: auto; border-top: 1px solid #e5e7eb; padding-top: 12px; }
-  #backLink {
-    display: block;
-    font-size: 14px;
-    color: #2563eb;
-    text-decoration: none;
-    font-weight: 600;
-    padding: 8px 12px;
-  }
   #logoutBtn {
     display: block;
     width: 100%;
@@ -314,6 +307,30 @@
   #confirm-all-box h3, #confirm-logout-box h3 { font-size: 16px; margin: 0 0 10px; }
   #confirm-all-box p, #confirm-logout-box p { font-size: 14px; color: #444; margin-bottom: 18px; }
 
+  /* ---------- Login gate ---------- */
+  #login-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: #f7f7f8;
+    z-index: 1400;
+    align-items: center; justify-content: center;
+  }
+  #login-overlay.open { display: flex; }
+  #login-box {
+    background: white; border-radius: 10px; padding: 28px;
+    width: 300px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  #login-box h2 { font-size: 18px; margin: 0 0 18px; text-align: center; }
+  #login-box input {
+    width: 100%; padding: 9px 12px; margin-bottom: 10px;
+    border: 1px solid #d1d5db; border-radius: 6px; background: #fafafa; font-size: 14px;
+  }
+  #loginSubmitBtn {
+    width: 100%; background: #2563eb; color: white; font-weight: 600; padding: 9px 12px;
+  }
+  #loginSubmitBtn:disabled { background: #9ca3af; cursor: default; }
+  #loginError { color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; display: none; }
+
   /* ---------- Gallery viewer: full-screen, with prev/next/annotate/delete ---------- */
   #gallery-overlay {
     display: none;
@@ -510,7 +527,19 @@
 </head>
 <body>
 
-<div id="layout">
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Admin Login</h2>
+    <form id="loginForm">
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username" required>
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit" id="loginSubmitBtn">Log in</button>
+      <div id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<div id="layout" hidden>
 
   <div id="sidebar">
     <h1>Admin</h1>
@@ -554,7 +583,6 @@
 
     <div id="sidebar-footer">
       <button id="logoutBtn" type="button">&#10148; Log out</button>
-      <a id="backLink" href="/">&larr; Back to search</a>
     </div>
   </div>
 
@@ -883,13 +911,73 @@
 <script>
 const API_BASE = "http://127.0.0.1:8001";
 
+// --- Login gate ---
+// admin.html is served unauthenticated (see api/main.py); this page checks
+// GET /admin/session on load to decide whether to show the login form or
+// the real admin panel underneath it. All the actual admin data is behind
+// a real server-side session cookie (see api/auth.py), so this is just UI
+// gating, not the security boundary itself.
+const layoutEl = document.getElementById("layout");
+const loginOverlay = document.getElementById("login-overlay");
+const loginForm = document.getElementById("loginForm");
+const loginSubmitBtn = document.getElementById("loginSubmitBtn");
+const loginError = document.getElementById("loginError");
+
+function showAdminPanel() {
+  loginOverlay.classList.remove("open");
+  layoutEl.hidden = false;
+}
+function showLoginForm() {
+  layoutEl.hidden = true;
+  loginOverlay.classList.add("open");
+  document.getElementById("loginUsername").focus();
+}
+
+(async function checkSession() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/session`, { credentials: "same-origin", cache: "no-store" });
+    if (res.ok) showAdminPanel();
+    else showLoginForm();
+  } catch (e) {
+    showLoginForm();
+  }
+})();
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  loginSubmitBtn.disabled = true;
+  loginSubmitBtn.textContent = "Logging in...";
+  loginError.style.display = "none";
+  try {
+    const res = await fetch(`${API_BASE}/admin/login`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("loginUsername").value,
+        password: document.getElementById("loginPassword").value,
+      }),
+    });
+    if (!res.ok) {
+      loginError.textContent = "Incorrect username or password";
+      loginError.style.display = "block";
+      return;
+    }
+    loginForm.reset();
+    showAdminPanel();
+  } catch (e) {
+    loginError.textContent = "Could not reach the server. Please try again.";
+    loginError.style.display = "block";
+  } finally {
+    loginSubmitBtn.disabled = false;
+    loginSubmitBtn.textContent = "Log in";
+  }
+});
+
 // --- Logout ---
-// HTTP Basic Auth has no real server-side session to end -- the browser just
-// caches the credentials you typed once and keeps resending them. Logging
-// out asks the server to rotate its Basic Auth realm (see rotate_realm() in
-// api/auth.py); once that changes, this browser's cached credentials no
-// longer match any realm it knows about, so the very next admin request
-// (including this page's own reload below) gets a fresh native login prompt.
+// Ends this browser's session server-side (see POST /admin/logout in
+// api/auth.py) so its session cookie no longer works -- the next load of
+// this page's checkSession() above will show the login form again.
 const confirmLogoutOverlay = document.getElementById("confirm-logout-overlay");
 const confirmLogoutCancelBtn = document.getElementById("confirmLogoutCancelBtn");
 const confirmLogoutBtn = document.getElementById("confirmLogoutBtn");
@@ -908,7 +996,7 @@ confirmLogoutBtn.addEventListener("click", async () => {
   confirmLogoutBtn.disabled = true;
   confirmLogoutBtn.textContent = "Logging out...";
   try {
-    await fetch(`${API_BASE}/admin/logout`, { method: "POST", cache: "no-store" });
+    await fetch(`${API_BASE}/admin/logout`, { method: "POST", credentials: "same-origin", cache: "no-store" });
   } catch (e) {
     // Ignore -- we navigate away regardless.
   }

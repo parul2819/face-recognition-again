@@ -19,7 +19,7 @@ from core.onedrive import get_folder_name, list_folder_images
 from core.remote_image import download_image
 
 from api import ingestion_jobs
-from api.auth import rotate_realm, verify_admin_credentials
+from api.auth import require_admin_session
 from api.config import (
     IMAGES_DIR,
     ONEDRIVE_INGEST_CONCURRENCY,
@@ -36,10 +36,10 @@ from api.utils import (
     parse_employee_id_and_name,
 )
 
-# Every route on this router requires HTTP Basic Auth (see api/auth.py) --
-# applied once here rather than per-route so nothing new added to this
-# file can accidentally be left unprotected.
-router = APIRouter(dependencies=[Depends(verify_admin_credentials)])
+# Every route on this router requires a valid admin session (see
+# api/auth.py) -- applied once here rather than per-route so nothing new
+# added to this file can accidentally be left unprotected.
+router = APIRouter(dependencies=[Depends(require_admin_session)])
 
 
 class PhotoDecodeError(ValueError):
@@ -85,18 +85,6 @@ async def _log_completed_action(target: str, label: str, count: int) -> None:
         await progress.record_success()
     await progress.flush()
     await ingestion_jobs.mark_completed(pool, job_id)
-
-
-@router.post("/admin/logout")
-async def logout():
-    """
-    Rotates the Basic Auth realm (see rotate_realm() in api/auth.py) so
-    every browser's cached admin credentials stop matching and it has to
-    prompt for a fresh login on its next admin request. The closest thing
-    to a real logout that Basic Auth supports.
-    """
-    rotate_realm()
-    return {"status": "logged out"}
 
 
 @router.get("/admin/stats")

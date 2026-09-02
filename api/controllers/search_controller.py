@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from core.face_utils import get_face_embeddings_from_array
 
-from api.auth import verify_admin_credentials
+from api.auth import require_admin_session
 from api.config import DEFAULT_PAGE_SIZE, PROJECT_ROOT, SEARCH_THRESHOLD
 from api.db import get_pool
 from api.utils import blob_path_to_url, embedding_to_pgvector
@@ -124,7 +124,7 @@ def embedding_from_face_list(faces) -> str:
     return embedding_to_pgvector(query_face["embedding"])
 
 
-@router.get("/search/filters", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/search/filters", dependencies=[Depends(require_admin_session)])
 async def get_search_filters():
     """
     Filter options for the search page: the default similarity threshold
@@ -143,7 +143,7 @@ async def get_search_filters():
     }
 
 
-@router.get("/search_by_event", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/search_by_event", dependencies=[Depends(require_admin_session)])
 async def search_by_event(
     event_name: str = Query(...),
     page: int = Query(default=1, ge=1),
@@ -255,7 +255,7 @@ async def search_by_image(
     }
 
 
-@router.get("/search_by_employee", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/search_by_employee", dependencies=[Depends(require_admin_session)])
 async def search_by_employee(
     employee_id: str = Query(...),
     page: int = Query(default=1, ge=1),

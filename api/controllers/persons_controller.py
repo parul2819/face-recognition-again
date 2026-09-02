@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends
 
-from api.auth import verify_admin_credentials
+from api.auth import require_admin_session
 from api.db import get_pool
 from api.utils import blob_path_to_url
 
 router = APIRouter()
 
 
-@router.get("/persons", dependencies=[Depends(verify_admin_credentials)])
+@router.get("/persons", dependencies=[Depends(require_admin_session)])
 async def list_persons():
     """
     Returns every known reference person, including a photo URL, for the

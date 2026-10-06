@@ -25,6 +25,7 @@ IMAGES_DIR = PROJECT_ROOT / os.getenv("IMAGES_DIR", "pics")
 # no client secret -- see core/onedrive_auth.py and scripts/onedrive_auth_setup.py).
 MS_CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
 MS_TENANT_ID = os.getenv("MS_TENANT_ID", "")
+MS_CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET", "")
 ONEDRIVE_TOKEN_CACHE_PATH = PROJECT_ROOT / os.getenv("ONEDRIVE_TOKEN_CACHE_PATH", ".onedrive_token_cache.json")
 
 # How many photos a folder-based OneDrive ingestion job processes at once.
